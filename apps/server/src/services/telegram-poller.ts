@@ -2,6 +2,7 @@ import { env } from "../config/env";
 import { store } from "../db/store";
 import type { BotRecord, TelegramMessageUpdate } from "../domain/types";
 import { handleTelegramUpdate } from "./chat-service";
+import { logError } from "./error-log";
 import { deleteTelegramWebhook, getTelegramUpdates, setTelegramCommands } from "./telegram";
 
 const offsets = new Map<number, number>();
@@ -33,13 +34,19 @@ const pollBot = async (bot: BotRecord): Promise<void> => {
     const offset = offsets.get(bot.id) ?? 0;
     const updates = await getTelegramUpdates(bot, offset, env.TELEGRAM_POLL_TIMEOUT_SECONDS);
     for (const update of updates as TelegramMessageUpdate[]) {
-      await handleTelegramUpdate(bot, update);
+      try {
+        await handleTelegramUpdate(bot, update);
+      } catch (error) {
+        logError("update_error", error instanceof Error ? error.message : String(error), {
+          bot: bot.slug,
+          updateId: update.update_id
+        });
+      }
       offsets.set(bot.id, update.update_id + 1);
     }
   } catch (error) {
-    console.error("polling_error", {
-      bot: bot.slug,
-      error: error instanceof Error ? error.message : String(error)
+    logError("polling_error", error instanceof Error ? error.message : String(error), {
+      bot: bot.slug
     });
   } finally {
     inflight.delete(bot.id);

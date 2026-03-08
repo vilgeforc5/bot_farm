@@ -3,6 +3,45 @@ import { buildBasicAuthHeader } from "./auth";
 
 export type BotStatus = "active" | "paused";
 
+export type SupportedLocale =
+  | "ru"
+  | "uk"
+  | "kk"
+  | "en"
+  | "hi"
+  | "fa"
+  | "zh"
+  | "de"
+  | "fr"
+  | "pl";
+
+export interface LocaleInfo {
+  code: SupportedLocale;
+  label: string;
+  flag: string;
+}
+
+export interface LocaleMessageOverride {
+  startMessage?: string;
+  countriesPage?: string;
+  selectCountry?: string;
+  currentlySelected?: string;
+  alreadySelected?: string;
+  countrySet?: string;
+  contextCleared?: string;
+  regenerating?: string;
+  messageNotFound?: string;
+  nothingToRegenerate?: string;
+  contextNotFound?: string;
+  unknownAction?: string;
+  regenerateButton?: string;
+  countryContext?: string;
+}
+
+export type LocaleMessagesMap = Partial<
+  Record<SupportedLocale, LocaleMessageOverride>
+>;
+
 export interface BotInlineButton {
   text: string;
   action: string;
@@ -22,6 +61,7 @@ export interface BotRecord {
   name: string;
   description: string;
   defaultCountryCode: string;
+  defaultLocale: string;
   telegramBotTokenPreview: string;
   status: BotStatus;
   strategyKey: "base_llm_chatbot_strategy";
@@ -32,6 +72,7 @@ export interface BotRecord {
   systemPrompt: string;
   helpMessage: string;
   buttons: BotInlineButton[];
+  localeMessages: LocaleMessagesMap;
   createdAt: string;
   updatedAt: string;
   stats: BotStats;
@@ -62,6 +103,7 @@ export interface BotPayload {
   name: string;
   description: string;
   defaultCountryCode: string;
+  defaultLocale: string;
   telegramBotToken?: string;
   status: BotStatus;
   strategyKey: "base_llm_chatbot_strategy";
@@ -72,6 +114,7 @@ export interface BotPayload {
   systemPrompt: string;
   helpMessage: string;
   buttons: BotInlineButton[];
+  localeMessages: LocaleMessagesMap;
 }
 
 export interface OpenRouterModelOption {
@@ -102,6 +145,34 @@ export interface CountriesResponse {
   items: CountryOption[];
 }
 
+export interface BotUserRecord {
+  conversationId: number;
+  chatId: string;
+  userId: string;
+  countryCode: string;
+  countryName: string;
+  totalChars: number;
+  modelsUsed: string[];
+  lastMessageText: string | null;
+  lastMessageAt: string | null;
+  updatedAt: string;
+}
+
+export interface BotUsersPageData {
+  items: BotUserRecord[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
+export interface ErrorLogEntry {
+  id: number;
+  kind: string;
+  message: string;
+  context: Record<string, unknown>;
+  occurredAt: string;
+}
+
 const parseError = async (response: Response): Promise<string> => {
   try {
     const payload = (await response.json()) as { error?: string };
@@ -111,14 +182,18 @@ const parseError = async (response: Response): Promise<string> => {
   }
 };
 
-export const apiFetch = async <T>(auth: StoredAuth, path: string, init?: RequestInit): Promise<T> => {
+export const apiFetch = async <T>(
+  auth: StoredAuth,
+  path: string,
+  init?: RequestInit,
+): Promise<T> => {
   const response = await fetch(`${auth.serverUrl}${path}`, {
     ...init,
     headers: {
       "Content-Type": "application/json",
-      "Authorization": buildBasicAuthHeader(auth),
-      ...(init?.headers ?? {})
-    }
+      Authorization: buildBasicAuthHeader(auth),
+      ...(init?.headers ?? {}),
+    },
   });
 
   if (!response.ok) {

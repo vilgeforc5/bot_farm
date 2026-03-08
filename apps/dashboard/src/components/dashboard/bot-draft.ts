@@ -2,6 +2,7 @@ import type {
   CountriesResponse,
   BotPayload,
   BotStatus,
+  LocaleMessagesMap,
   OpenRouterModelOption,
 } from "../../lib/api";
 
@@ -10,6 +11,7 @@ export interface BotDraft {
   name: string;
   description: string;
   defaultCountryCode: string;
+  defaultLocale: string;
   telegramBotToken: string;
   status: BotStatus;
   llmModel: string;
@@ -17,6 +19,7 @@ export interface BotDraft {
   contextLimit: string;
   systemPrompt: string;
   startMessage: string;
+  localeMessages: LocaleMessagesMap;
 }
 
 const defaultStartMessage = [
@@ -32,6 +35,7 @@ export const makeDefaultDraft = (): BotDraft => ({
   name: "",
   description: "",
   defaultCountryCode: "RU",
+  defaultLocale: "",
   telegramBotToken: "",
   status: "paused",
   llmModel: "openrouter/free",
@@ -39,6 +43,7 @@ export const makeDefaultDraft = (): BotDraft => ({
   contextLimit: "300",
   systemPrompt: "",
   startMessage: defaultStartMessage,
+  localeMessages: {},
 });
 
 export const parsePayload = (
@@ -55,6 +60,7 @@ export const parsePayload = (
     name: draft.name.trim(),
     description: draft.description.trim(),
     defaultCountryCode: draft.defaultCountryCode.trim().toUpperCase(),
+    defaultLocale: draft.defaultLocale.trim(),
     ...(telegramBotToken ? { telegramBotToken } : {}),
     status: draft.status,
     strategyKey: "base_llm_chatbot_strategy",
@@ -67,6 +73,7 @@ export const parsePayload = (
     systemPrompt: draft.systemPrompt.trim(),
     helpMessage: draft.startMessage.trim(),
     buttons: [],
+    localeMessages: draft.localeMessages,
   };
 };
 

@@ -10,11 +10,19 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as LoginRouteImport } from './routes/login'
+import { Route as ErrorsRouteImport } from './routes/errors'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as BotsBotIdUsersRouteImport } from './routes/bots.$botId.users'
+import { Route as BotsBotIdLocalesRouteImport } from './routes/bots.$botId.locales'
 
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
   path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ErrorsRoute = ErrorsRouteImport.update({
+  id: '/errors',
+  path: '/errors',
   getParentRoute: () => rootRouteImport,
 } as any)
 const IndexRoute = IndexRouteImport.update({
@@ -22,31 +30,64 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const BotsBotIdUsersRoute = BotsBotIdUsersRouteImport.update({
+  id: '/bots/$botId/users',
+  path: '/bots/$botId/users',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const BotsBotIdLocalesRoute = BotsBotIdLocalesRouteImport.update({
+  id: '/bots/$botId/locales',
+  path: '/bots/$botId/locales',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/errors': typeof ErrorsRoute
   '/login': typeof LoginRoute
+  '/bots/$botId/locales': typeof BotsBotIdLocalesRoute
+  '/bots/$botId/users': typeof BotsBotIdUsersRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/errors': typeof ErrorsRoute
   '/login': typeof LoginRoute
+  '/bots/$botId/locales': typeof BotsBotIdLocalesRoute
+  '/bots/$botId/users': typeof BotsBotIdUsersRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/errors': typeof ErrorsRoute
   '/login': typeof LoginRoute
+  '/bots/$botId/locales': typeof BotsBotIdLocalesRoute
+  '/bots/$botId/users': typeof BotsBotIdUsersRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/login'
+  fullPaths:
+    | '/'
+    | '/errors'
+    | '/login'
+    | '/bots/$botId/locales'
+    | '/bots/$botId/users'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/login'
-  id: '__root__' | '/' | '/login'
+  to: '/' | '/errors' | '/login' | '/bots/$botId/locales' | '/bots/$botId/users'
+  id:
+    | '__root__'
+    | '/'
+    | '/errors'
+    | '/login'
+    | '/bots/$botId/locales'
+    | '/bots/$botId/users'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  ErrorsRoute: typeof ErrorsRoute
   LoginRoute: typeof LoginRoute
+  BotsBotIdLocalesRoute: typeof BotsBotIdLocalesRoute
+  BotsBotIdUsersRoute: typeof BotsBotIdUsersRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -58,6 +99,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LoginRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/errors': {
+      id: '/errors'
+      path: '/errors'
+      fullPath: '/errors'
+      preLoaderRoute: typeof ErrorsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -65,12 +113,29 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/bots/$botId/users': {
+      id: '/bots/$botId/users'
+      path: '/bots/$botId/users'
+      fullPath: '/bots/$botId/users'
+      preLoaderRoute: typeof BotsBotIdUsersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/bots/$botId/locales': {
+      id: '/bots/$botId/locales'
+      path: '/bots/$botId/locales'
+      fullPath: '/bots/$botId/locales'
+      preLoaderRoute: typeof BotsBotIdLocalesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  ErrorsRoute: ErrorsRoute,
   LoginRoute: LoginRoute,
+  BotsBotIdLocalesRoute: BotsBotIdLocalesRoute,
+  BotsBotIdUsersRoute: BotsBotIdUsersRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

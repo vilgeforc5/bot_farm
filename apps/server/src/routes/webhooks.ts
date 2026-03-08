@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import type { DatabaseAdapter } from "../db/store";
 import type { TelegramMessageUpdate } from "../domain/types";
 import { handleTelegramUpdate } from "../services/chat-service";
+import { logError } from "../services/error-log";
 
 export const createWebhooksRoutes = ({ database }: { database: DatabaseAdapter }) => {
   const webhooks = new Hono();
@@ -21,9 +22,8 @@ export const createWebhooksRoutes = ({ database }: { database: DatabaseAdapter }
     try {
       await handleTelegramUpdate(bot, update);
     } catch (error) {
-      console.error("webhook_error", {
-        bot: bot.slug,
-        error: error instanceof Error ? error.message : String(error)
+      logError("webhook_error", error instanceof Error ? error.message : String(error), {
+        bot: bot.slug
       });
     }
 

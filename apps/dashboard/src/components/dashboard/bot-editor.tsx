@@ -1,6 +1,7 @@
 import type {
   BotStatus,
   CountryOption,
+  LocaleInfo,
   OpenRouterModelOption,
 } from "../../lib/api";
 import { Button } from "../ui/button";
@@ -21,6 +22,7 @@ import { ModelFallbackPicker } from "./model-fallback-picker";
 interface BotEditorProps {
   availableModels: OpenRouterModelOption[];
   availableCountries: CountryOption[];
+  availableLocales?: LocaleInfo[];
   draft: BotDraft;
   onChange: (draft: BotDraft) => void;
   onSubmit: () => void;
@@ -33,9 +35,12 @@ const statuses: Array<{ value: BotStatus; label: string }> = [
   { value: "active", label: "активен" },
 ];
 
+const AUTO_LOCALE_VALUE = "__auto__";
+
 export function BotEditor({
   availableModels,
   availableCountries,
+  availableLocales = [],
   draft,
   onChange,
   onSubmit,
@@ -82,6 +87,31 @@ export function BotEditor({
             ))}
           </SelectContent>
         </Select>
+      </Field>
+      <Field label="Locale for system messages">
+        <Select
+          onValueChange={(value) =>
+            update("defaultLocale", value === AUTO_LOCALE_VALUE ? "" : value)
+          }
+          value={draft.defaultLocale || AUTO_LOCALE_VALUE}
+        >
+          <SelectTrigger>
+            <SelectValue placeholder="Auto (by country)" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={AUTO_LOCALE_VALUE}>
+              🌐 Auto (detect from user's country)
+            </SelectItem>
+            {availableLocales.map((locale) => (
+              <SelectItem key={locale.code} value={locale.code}>
+                {locale.flag} {locale.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <p className="text-xs text-stone-500">
+          Overrides automatic locale detection. "Auto" picks the locale based on each user's selected country.
+        </p>
       </Field>
       {showTelegramTokenField ? (
         <Field className="md:col-span-2" label="Токен Telegram">

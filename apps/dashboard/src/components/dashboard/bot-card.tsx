@@ -1,6 +1,8 @@
+import { Link } from "@tanstack/react-router";
 import type {
   BotRecord,
   CountryOption,
+  LocaleInfo,
   OpenRouterModelOption,
 } from "../../lib/api";
 import { Badge } from "../ui/badge";
@@ -13,11 +15,13 @@ import { MetricTile } from "./metric-card";
 interface BotCardProps {
   availableModels: OpenRouterModelOption[];
   availableCountries: CountryOption[];
+  availableLocales: LocaleInfo[];
   bot: BotRecord;
   draft: BotDraft;
   onChange: (draft: BotDraft) => void;
   onConnect: () => void;
   onDisconnect: () => void;
+  onRemove: () => void;
   onSave: () => void;
   onToggle: () => void;
   saveLabel: string;
@@ -26,15 +30,26 @@ interface BotCardProps {
 export function BotCard({
   availableModels,
   availableCountries,
+  availableLocales,
   bot,
   draft,
   onChange,
   onConnect,
   onDisconnect,
+  onRemove,
   onSave,
   onToggle,
   saveLabel,
 }: BotCardProps) {
+  const handleRemove = () => {
+    if (
+      window.confirm(
+        `Удалить бота «${bot.name}»? Пользователи и их история сохранятся в базе данных.`,
+      )
+    ) {
+      onRemove();
+    }
+  };
   return (
     <section className="rounded-[1.75rem] border border-black/10 bg-white/80 p-6 shadow-[0_20px_50px_rgba(0,0,0,0.05)] backdrop-blur">
       <div className="flex flex-col gap-4">
@@ -68,6 +83,7 @@ export function BotCard({
 
         <BotEditor
           availableCountries={availableCountries}
+          availableLocales={availableLocales}
           availableModels={availableModels}
           draft={draft}
           onChange={onChange}
@@ -85,6 +101,19 @@ export function BotCard({
           </Button>
           <Button onClick={onDisconnect} type="button" variant="outline">
             Отключить webhook
+          </Button>
+          <Button type="button" variant="outline">
+            <Link to="/bots/$botId/locales" params={{ botId: String(bot.id) }}>
+              Системные сообщения
+            </Link>
+          </Button>
+          <Button type="button" variant="outline">
+            <Link to="/bots/$botId/users" params={{ botId: String(bot.id) }}>
+              Пользователи
+            </Link>
+          </Button>
+          <Button onClick={handleRemove} type="button" variant="destructive">
+            Удалить бота
           </Button>
         </div>
       </div>

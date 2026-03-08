@@ -1,4 +1,7 @@
 import type { Update } from "grammy/types";
+import type { LocaleMessagesOverrides, SupportedLocale } from "../services/locales";
+
+export type { LocaleMessagesOverrides, SupportedLocale };
 
 export type BotStatus = "active" | "paused";
 
@@ -17,6 +20,7 @@ export interface BotRecord {
   name: string;
   description: string;
   defaultCountryCode: string;
+  defaultLocale: SupportedLocale | "";
   telegramBotToken: string;
   telegramSecretToken: string;
   status: BotStatus;
@@ -28,6 +32,7 @@ export interface BotRecord {
   systemPrompt: string;
   helpMessage: string;
   buttons: BotInlineButton[];
+  localeMessages: LocaleMessagesOverrides;
   createdAt: string;
   updatedAt: string;
 }
@@ -122,4 +127,24 @@ export interface CountryOption {
 export interface CountriesResponse {
   defaultCountryCode: string;
   items: CountryOption[];
+}
+
+export interface BotUserRecord {
+  conversationId: number;
+  chatId: string;
+  userId: string;
+  countryCode: string;
+  countryName: string;
+  totalChars: number;
+  modelsUsed: string[];
+  lastMessageText: string | null;
+  lastMessageAt: string | null;
+  updatedAt: string;
+}
+
+export interface BotUsersPage {
+  items: BotUserRecord[];
+  total: number;
+  page: number;
+  pageSize: number;
 }

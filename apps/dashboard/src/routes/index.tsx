@@ -11,14 +11,13 @@ import {
 } from "../components/dashboard/bot-draft";
 import { BotEditor } from "../components/dashboard/bot-editor";
 import { DashboardHero } from "../components/dashboard/dashboard-hero";
-import { InteractionsSection } from "../components/dashboard/interactions-section";
 import { MetricCard } from "../components/dashboard/metric-card";
 import { Card, CardContent } from "../components/ui/card";
 import type {
   BotRecord,
   CountriesResponse,
   DashboardSummary,
-  InteractionRecord,
+  LocaleInfo,
   OpenRouterModelsResponse,
 } from "../lib/api";
 import { apiFetch } from "../lib/api";
@@ -55,15 +54,6 @@ function DashboardPage() {
     refetchOnWindowFocus: true,
   });
 
-  const interactionsQuery = useQuery({
-    queryKey: ["interactions", auth.serverUrl],
-    queryFn: () =>
-      apiFetch<InteractionRecord[]>(auth, "/api/admin/db/interactions"),
-    staleTime: 10_000,
-    refetchInterval: 5_000,
-    refetchOnWindowFocus: true,
-  });
-
   const modelsQuery = useQuery({
     queryKey: ["openrouter-models", auth.serverUrl],
     queryFn: () =>
@@ -77,13 +67,16 @@ function DashboardPage() {
     staleTime: 60_000,
   });
 
+  const localesQuery = useQuery({
+    queryKey: ["locales", auth.serverUrl],
+    queryFn: () => apiFetch<LocaleInfo[]>(auth, "/api/admin/locales"),
+    staleTime: Infinity,
+  });
+
   const refreshAll = async () => {
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: ["summary", auth.serverUrl] }),
       queryClient.invalidateQueries({ queryKey: ["bots", auth.serverUrl] }),
-      queryClient.invalidateQueries({
-        queryKey: ["interactions", auth.serverUrl],
-      }),
     ]);
   };
 
@@ -156,6 +149,20 @@ function DashboardPage() {
     },
   });
 
+  const removeMutation = useMutation({
+    mutationFn: (botId: number) =>
+      apiFetch<{ ok: true }>(auth, `/api/admin/db/bots/${botId}`, { method: "DELETE" }),
+    onSuccess: async () => {
+      toast.success("Бот удалён");
+      await refreshAll();
+    },
+    onError: (error) => {
+      toast.error(
+        error instanceof Error ? error.message : "Не удалось удалить бота",
+      );
+    },
+  });
+
   const submitDraft = (draft: BotDraft, botId?: number) => {
     try {
       saveMutation.mutate({
@@ -173,9 +180,9 @@ function DashboardPage() {
 
   const bots = botsQuery.data ?? [];
   const summary = summaryQuery.data;
-  const interactions = interactionsQuery.data ?? [];
   const availableModels = modelsQuery.data?.items ?? [];
   const availableCountries = countriesQuery.data?.items ?? [];
+  const availableLocales = localesQuery.data ?? [];
   const createBotDraft = applyDefaultCountry(
     {
       ...createDraft,
@@ -215,6 +222,7 @@ function DashboardPage() {
           </div>
           <BotEditor
             availableCountries={availableCountries}
+            availableLocales={availableLocales}
             availableModels={availableModels}
             draft={createBotDraft}
             onChange={setCreateDraft}
@@ -226,8 +234,6 @@ function DashboardPage() {
         </CardContent>
       </Card>
 
-      <InteractionsSection interactions={interactions} />
-
       <section className="grid gap-5 xl:grid-cols-2">
         {bots.map((bot) => {
           const draft =
@@ -237,6 +243,7 @@ function DashboardPage() {
               name: bot.name,
               description: bot.description,
               defaultCountryCode: bot.defaultCountryCode,
+              defaultLocale: bot.defaultLocale ?? "",
               telegramBotToken: "",
               status: bot.status,
               llmModel: bot.llmModel,
@@ -244,11 +251,13 @@ function DashboardPage() {
               contextLimit: String(bot.contextLimit),
               systemPrompt: bot.systemPrompt,
               startMessage: bot.helpMessage,
+              localeMessages: bot.localeMessages ?? {},
             } satisfies BotDraft);
 
           return (
             <BotCard
               availableCountries={availableCountries}
+              availableLocales={availableLocales}
               availableModels={availableModels}
               bot={bot}
               draft={draft}
@@ -269,6 +278,7 @@ function DashboardPage() {
                   path: `/api/admin/bots/${bot.id}/disconnect`,
                 })
               }
+              onRemove={() => removeMutation.mutate(bot.id)}
               onSave={() => submitDraft(draft, bot.id)}
               onToggle={() =>
                 actionMutation.mutate({

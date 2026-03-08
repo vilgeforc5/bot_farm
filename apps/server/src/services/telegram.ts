@@ -57,9 +57,14 @@ export const editTelegramMessage = async (
 };
 
 export const answerCallbackQuery = async (bot: BotRecord, callbackQueryId: string, text: string): Promise<void> => {
-  await getClient(bot).api.answerCallbackQuery(callbackQueryId, {
-    text
-  });
+  try {
+    await getClient(bot).api.answerCallbackQuery(callbackQueryId, { text });
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : String(error);
+    if (!msg.includes("query is too old") && !msg.includes("query ID is invalid")) {
+      throw error;
+    }
+  }
 };
 
 export const sendTypingAction = async (bot: BotRecord, chatId: string): Promise<void> => {

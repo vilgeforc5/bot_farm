@@ -50,8 +50,21 @@ const toCountryOption = (country: WorldCountry): CountryOption => {
   };
 };
 
+const LOCALE_COUNTRY_CODES = new Set([
+  "RU", // ru
+  "UA", // uk
+  "KZ", // kk
+  "GB", // en
+  "IN", // hi
+  "IR", // fa
+  "CN", // zh
+  "DE", // de
+  "FR", // fr
+  "PL", // pl
+]);
+
 export const countries = (countriesData as WorldCountry[])
-  .filter((country) => country.unMember)
+  .filter((country) => LOCALE_COUNTRY_CODES.has(country.cca2))
   .map(toCountryOption)
   .sort((left, right) => {
     if (left.code === "RU") {
@@ -101,11 +114,15 @@ export const listCountries = (): CountriesResponse => ({
   items: countries
 });
 
-export const buildCountrySelectionText = (country: CountryOption) =>
+export const buildCountrySelectionText = (
+  country: CountryOption,
+  messages: { selectCountry: string; currentlySelected: string },
+) =>
   [
-    "Выберите свою страну.",
-    `Сейчас выбрана: ${country.flag} ${country.nativeName}.`,
-    "Чатбот будет отвечать вам на вашем языке!"
+    messages.selectCountry,
+    messages.currentlySelected
+      .replace("{flag}", country.flag)
+      .replace("{country}", country.nativeName),
   ].join("\n");
 
 export const buildCountryKeyboard = (
@@ -184,5 +201,8 @@ export const parseCountryAction = (action: string): CountryAction | null => {
 
 export const buildCountryContext = (
   country: Pick<CountryOption, "flag" | "nativeName">,
+  countryContextTemplate: string,
 ) =>
-  `Страна пользователя: ${country.flag} ${country.nativeName}. По умолчанию отвечай с учётом локального контекста этой страны и на языке пользователя, если он не попросил иное.`;
+  countryContextTemplate
+    .replace("{flag}", country.flag)
+    .replace("{country}", country.nativeName);

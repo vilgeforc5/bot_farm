@@ -1,5 +1,5 @@
 import { TanStackDevtools } from "@tanstack/react-devtools";
-import { Outlet, createRootRoute } from "@tanstack/react-router";
+import { Link, Outlet, createRootRoute } from "@tanstack/react-router";
 import { TanStackRouterDevtoolsPanel } from "@tanstack/react-router-devtools";
 import { Toaster } from "../components/ui/sonner";
 import { clearAuth, readAuth } from "../lib/auth";
@@ -19,11 +19,31 @@ function RootComponent() {
           <p className="text-[11px] uppercase tracking-[0.28em] text-stone-500">
             Панель оператора
           </p>
-          <h1 className="text-2xl font-semibold tracking-tight">
-            Ферма Telegram-ботов
-          </h1>
+          <Link to="/">
+            <h1 className="text-2xl font-semibold tracking-tight">
+              Ферма Telegram-ботов
+            </h1>
+          </Link>
         </div>
         <div className="flex items-center gap-3">
+          {auth ? (
+            <Link
+              className="rounded-full border border-black/10 bg-white/70 px-4 py-2 text-sm text-stone-600 transition hover:bg-stone-100"
+              to="/errors"
+            >
+              Ошибки
+            </Link>
+          ) : null}
+
+          {auth ? (
+            <Link
+              className="rounded-full border border-black/10 bg-white/70 px-4 py-2 text-sm text-stone-600 transition hover:bg-stone-100"
+              to="/"
+            >
+              Главная
+            </Link>
+          ) : null}
+
           {auth ? (
             <span className="rounded-full border border-black/10 bg-white/70 px-4 py-2 text-sm text-stone-600">
               {auth.username}@{new URL(auth.serverUrl).host}

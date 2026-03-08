@@ -10,6 +10,7 @@ import type {
   BotRecord,
   BotStats,
   BotStatus,
+  BotUsersPage,
   ConversationRecord,
   DashboardSummary,
   InteractionRecord,
@@ -17,6 +18,7 @@ import type {
   MessageRole,
   UsageRecord
 } from "../domain/types";
+import type { LocaleMessagesOverrides, SupportedLocale } from "../services/locales";
 
 export interface SaveBotInput {
   id?: number;
@@ -24,6 +26,7 @@ export interface SaveBotInput {
   name: string;
   description: string;
   defaultCountryCode: string;
+  defaultLocale: string;
   telegramBotToken: string;
   telegramSecretToken?: string;
   status: BotStatus;
@@ -35,6 +38,7 @@ export interface SaveBotInput {
   systemPrompt: string;
   helpMessage: string;
   buttons: BotInlineButton[];
+  localeMessages: LocaleMessagesOverrides;
 }
 
 export interface DatabaseStatus {
@@ -48,6 +52,7 @@ export interface DatabaseAdapter {
   getBotById(id: number): Promise<BotRecord | null>;
   getBotBySlug(slug: string): Promise<BotRecord | null>;
   saveBot(input: SaveBotInput): Promise<BotRecord>;
+  deleteBot(id: number): Promise<void>;
   setBotStatus(id: number, status: BotStatus): Promise<void>;
   getOrCreateConversation(botId: number, chatId: string, userId: string): Promise<ConversationRecord>;
   getConversationById(id: number): Promise<ConversationRecord | null>;
@@ -64,6 +69,7 @@ export interface DatabaseAdapter {
   getBotStats(botId: number): Promise<BotStats>;
   getDashboardSummary(): Promise<DashboardSummary>;
   listRecentInteractions(limit?: number): Promise<InteractionRecord[]>;
+  listBotUsers(botId: number, page: number, pageSize: number): Promise<BotUsersPage>;
   getStatus(): Promise<DatabaseStatus>;
   close(): Promise<void>;
 }
@@ -74,6 +80,7 @@ interface BotRow {
   name: string;
   description: string;
   defaultCountryCode: string;
+  defaultLocale: string;
   telegramBotToken: string;
   telegramSecretToken: string;
   status: BotStatus;
@@ -85,6 +92,7 @@ interface BotRow {
   systemPrompt: string;
   helpMessage: string;
   buttonsJson: string;
+  localeMessagesJson: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -132,6 +140,7 @@ const BotSchema = new EntitySchema<BotRow>({
     name: { type: String },
     description: { type: String, default: "" },
     defaultCountryCode: { name: "default_country_code", type: String, default: "RU" },
+    defaultLocale: { name: "default_locale", type: String, default: "" },
     telegramBotToken: { name: "telegram_bot_token", type: String },
     telegramSecretToken: { name: "telegram_secret_token", type: String },
     status: { type: String },
@@ -143,6 +152,7 @@ const BotSchema = new EntitySchema<BotRow>({
     systemPrompt: { name: "system_prompt", type: String, default: "" },
     helpMessage: { name: "help_message", type: String, default: "" },
     buttonsJson: { name: "buttons_json", type: String, default: "[]" },
+    localeMessagesJson: { name: "locale_messages_json", type: String, default: "{}" },
     createdAt: { name: "created_at", type: String },
     updatedAt: { name: "updated_at", type: String }
   }
@@ -206,6 +216,7 @@ const mapBot = (row: BotRow, decryptSecret: (value: string) => string): BotRecor
   name: row.name,
   description: row.description,
   defaultCountryCode: row.defaultCountryCode,
+  defaultLocale: (row.defaultLocale ?? "") as SupportedLocale | "",
   telegramBotToken: decryptSecret(row.telegramBotToken),
   telegramSecretToken: decryptSecret(row.telegramSecretToken),
   status: row.status,
@@ -217,6 +228,7 @@ const mapBot = (row: BotRow, decryptSecret: (value: string) => string): BotRecor
   systemPrompt: row.systemPrompt,
   helpMessage: row.helpMessage,
   buttons: JSON.parse(row.buttonsJson) as BotInlineButton[],
+  localeMessages: JSON.parse(row.localeMessagesJson ?? "{}") as LocaleMessagesOverrides,
   createdAt: row.createdAt,
   updatedAt: row.updatedAt
 });
@@ -346,6 +358,7 @@ export const createTypeOrmDatabaseAdapter = ({
             name: input.name,
             description: input.description,
             defaultCountryCode: input.defaultCountryCode,
+            defaultLocale: input.defaultLocale,
             telegramBotToken: encryptSecret(input.telegramBotToken),
             telegramSecretToken: encryptSecret(secretToken),
             status: input.status,
@@ -357,6 +370,7 @@ export const createTypeOrmDatabaseAdapter = ({
             systemPrompt: input.systemPrompt,
             helpMessage: input.helpMessage,
             buttonsJson: JSON.stringify(input.buttons),
+            localeMessagesJson: JSON.stringify(input.localeMessages),
             updatedAt: now
           };
 
@@ -385,6 +399,15 @@ export const createTypeOrmDatabaseAdapter = ({
             { id },
             { status, updatedAt: new Date().toISOString() }
           );
+        },
+        { persist: true }
+      );
+    },
+
+    async deleteBot(id) {
+      return withDataSource(
+        async (dataSource) => {
+          await dataSource.getRepository(BotSchema).delete({ id });
         },
         { persist: true }
       );
@@ -686,6 +709,60 @@ export const createTypeOrmDatabaseAdapter = ({
           lastMessageText: row.last_message_text ? String(row.last_message_text) : null,
           lastMessageAt: row.last_message_at ? String(row.last_message_at) : null
         }));
+      });
+    },
+
+    async listBotUsers(botId, page, pageSize) {
+      return withDataSource(async (dataSource) => {
+        const offset = (page - 1) * pageSize;
+        const rows = (await dataSource.query(
+          `
+            SELECT
+              c.id AS conversation_id,
+              c.chat_id,
+              c.user_id,
+              c.country_code,
+              c.country_name,
+              c.updated_at,
+              m.text AS last_message_text,
+              m.created_at AS last_message_at,
+              COALESCE(SUM(u.total_chars), 0) AS total_chars,
+              GROUP_CONCAT(DISTINCT u.model) AS models_used
+            FROM conversations c
+            LEFT JOIN messages m ON m.id = (
+              SELECT id FROM messages WHERE conversation_id = c.id ORDER BY id DESC LIMIT 1
+            )
+            LEFT JOIN usage_events u ON u.conversation_id = c.id
+            WHERE c.bot_id = ?
+            GROUP BY c.id
+            ORDER BY COALESCE(m.created_at, c.updated_at) DESC
+            LIMIT ? OFFSET ?
+          `,
+          [botId, pageSize, offset]
+        )) as Array<Record<string, string | number | null>>;
+
+        const countRows = (await dataSource.query(
+          `SELECT COUNT(*) AS total FROM conversations WHERE bot_id = ?`,
+          [botId]
+        )) as Array<Record<string, number>>;
+
+        return {
+          items: rows.map((row) => ({
+            conversationId: Number(row.conversation_id),
+            chatId: String(row.chat_id),
+            userId: String(row.user_id),
+            countryCode: String(row.country_code),
+            countryName: String(row.country_name),
+            totalChars: Number(row.total_chars),
+            modelsUsed: row.models_used ? String(row.models_used).split(",") : [],
+            lastMessageText: row.last_message_text ? String(row.last_message_text) : null,
+            lastMessageAt: row.last_message_at ? String(row.last_message_at) : null,
+            updatedAt: String(row.updated_at)
+          })),
+          total: Number(countRows[0]?.total ?? 0),
+          page,
+          pageSize
+        };
       });
     },
 

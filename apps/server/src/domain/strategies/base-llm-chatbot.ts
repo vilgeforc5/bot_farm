@@ -1,5 +1,6 @@
 import { env } from "../../config/env";
 import { buildCountryContext, getCountryByCode } from "../../services/countries";
+import { getLocaleForCountry, isSupportedLocale, resolveMessages } from "../../services/locales";
 import type {
   BotInlineButton,
   BotRecord,
@@ -28,15 +29,15 @@ export interface BotStrategy {
 }
 
 const defaultButtons: BotInlineButton[] = [
-  { text: "Сгенерировать снова", action: "regenerate_response" }
+  { text: "Regenerate", action: "regenerate_response" }
 ];
 
 const defaultStartMessage = [
-  "Привет. Я готов помочь.",
-  "Напишите ваш вопрос обычным сообщением.",
-  "Команды:",
-  "- /country: выбрать страну",
-  "- /clear: очистить контекст",
+  "Hi. I'm ready to help.",
+  "Send your question as a regular message.",
+  "Commands:",
+  "- /country: select country",
+  "- /clear: clear context",
 ].join("\n");
 
 export const baseLlmChatbotStrategy: BotStrategy = {
@@ -46,13 +47,17 @@ export const baseLlmChatbotStrategy: BotStrategy = {
   defaultStartMessage,
   buildExecution({ conversation, messages, bot }) {
     const country = getCountryByCode(conversation.countryCode);
+    const locale =
+      (bot.defaultLocale && isSupportedLocale(bot.defaultLocale) ? bot.defaultLocale : null) ??
+      getLocaleForCountry(conversation.countryCode);
+    const msgs = resolveMessages(locale, bot.localeMessages);
     const reducedContext = buildReducedContext(messages, bot.contextLimit || env.DEFAULT_CONTEXT_LIMIT);
     const prompt = [
       bot.systemPrompt.trim(),
-      buildCountryContext({
-        flag: country.flag,
-        nativeName: conversation.countryName || country.nativeName,
-      }),
+      buildCountryContext(
+        { flag: country.flag, nativeName: conversation.countryName || country.nativeName },
+        msgs.countryContext,
+      ),
       reducedContext,
     ]
       .filter(Boolean)

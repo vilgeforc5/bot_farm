@@ -21,7 +21,7 @@ export const createApp = ({
     cors({
       origin: environment.DASHBOARD_ORIGIN,
       allowHeaders: ["Content-Type", "Authorization"],
-      allowMethods: ["GET", "POST", "PUT", "OPTIONS"]
+      allowMethods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
     })
   );
 

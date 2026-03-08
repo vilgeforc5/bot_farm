@@ -5,7 +5,9 @@ import type { ServerEnv } from "../config/env";
 import type { DatabaseAdapter } from "../db/store";
 import type { BotStatus } from "../domain/types";
 import { listCountries } from "../services/countries";
+import { clearErrorLog, getErrorLog } from "../services/error-log";
 import { listOpenRouterModels } from "../services/openrouter";
+import { SUPPORTED_LOCALES } from "../services/locales";
 import {
   deleteTelegramWebhook,
   setTelegramCommands,
@@ -13,11 +15,39 @@ import {
   setTelegramWebhook,
 } from "../services/telegram";
 
+const localeMessageOverrideSchema = z.object({
+  startMessage: z.string().optional(),
+  countriesPage: z.string().optional(),
+  selectCountry: z.string().optional(),
+  currentlySelected: z.string().optional(),
+  alreadySelected: z.string().optional(),
+  countrySet: z.string().optional(),
+  contextCleared: z.string().optional(),
+  regenerating: z.string().optional(),
+  messageNotFound: z.string().optional(),
+  nothingToRegenerate: z.string().optional(),
+  contextNotFound: z.string().optional(),
+  unknownAction: z.string().optional(),
+  regenerateButton: z.string().optional(),
+  countryContext: z.string().optional(),
+}).strict();
+
+const localeMessagesSchema = z
+  .record(z.string(), localeMessageOverrideSchema)
+  .default({})
+  .transform((map) => {
+    const validCodes = new Set(SUPPORTED_LOCALES.map((l) => l.code));
+    return Object.fromEntries(
+      Object.entries(map).filter(([key]) => validCodes.has(key))
+    );
+  });
+
 const createBotPayloadSchema = z.object({
   slug: z.string().min(1),
   name: z.string().min(1),
   description: z.string().default(""),
   defaultCountryCode: z.string().trim().length(2).transform((value) => value.toUpperCase()).default("RU"),
+  defaultLocale: z.string().default(""),
   telegramBotToken: z.string().min(1),
   status: z.enum(["active", "paused"]).default("paused"),
   strategyKey: z.literal("base_llm_chatbot_strategy").default("base_llm_chatbot_strategy"),
@@ -34,7 +64,8 @@ const createBotPayloadSchema = z.object({
         action: z.string().min(1)
       })
     )
-    .default([])
+    .default([]),
+  localeMessages: localeMessagesSchema,
 });
 
 const updateBotPayloadSchema = createBotPayloadSchema.extend({
@@ -64,6 +95,7 @@ const serializeAdminBot = async (database: DatabaseAdapter, botId: number) => {
     name: bot.name,
     description: bot.description,
     defaultCountryCode: bot.defaultCountryCode,
+    defaultLocale: bot.defaultLocale,
     telegramBotTokenPreview: maskTelegramToken(bot.telegramBotToken),
     status: bot.status,
     strategyKey: bot.strategyKey,
@@ -74,6 +106,7 @@ const serializeAdminBot = async (database: DatabaseAdapter, botId: number) => {
     systemPrompt: bot.systemPrompt,
     helpMessage: bot.helpMessage,
     buttons: bot.buttons,
+    localeMessages: bot.localeMessages,
     createdAt: bot.createdAt,
     updatedAt: bot.updatedAt,
     stats: await database.getBotStats(bot.id)
@@ -101,8 +134,12 @@ export const createApiRoutes = ({
 
   admin.get("/session", (c) => c.json({ ok: true }));
 
+  admin.get("/errors", (c) => c.json(getErrorLog()));
+  admin.delete("/errors", (c) => { clearErrorLog(); return c.json({ ok: true }); });
+
   admin.get("/openrouter/models", async (c) => c.json(await listOpenRouterModels()));
   admin.get("/countries", (c) => c.json(listCountries()));
+  admin.get("/locales", (c) => c.json(SUPPORTED_LOCALES));
 
   db.get("/status", async (c) => c.json(await database.getStatus()));
 
@@ -158,6 +195,24 @@ export const createApiRoutes = ({
     } catch (error) {
       return c.json({ error: error instanceof Error ? error.message : "Failed to update bot" }, 400);
     }
+  });
+
+  db.delete("/bots/:id", async (c) => {
+    const botId = Number(c.req.param("id"));
+    const bot = await database.getBotById(botId);
+    if (!bot) {
+      return c.json({ error: "Bot not found" }, 404);
+    }
+
+    await database.deleteBot(botId);
+    return c.json({ ok: true });
+  });
+
+  db.get("/bots/:id/users", async (c) => {
+    const botId = Number(c.req.param("id"));
+    const page = Math.max(1, Number(c.req.query("page") ?? 1));
+    const pageSize = Math.min(100, Math.max(1, Number(c.req.query("pageSize") ?? 20)));
+    return c.json(await database.listBotUsers(botId, page, pageSize));
   });
 
   db.post("/bots/:id/toggle", async (c) => {
