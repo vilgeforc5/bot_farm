@@ -6,31 +6,33 @@ import type { DatabaseAdapter } from "../db/store";
 import type { BotStatus } from "../domain/types";
 import { listCountries } from "../services/countries";
 import { clearErrorLog, getErrorLog } from "../services/error-log";
-import { listOpenRouterModels } from "../services/openrouter";
 import { SUPPORTED_LOCALES } from "../services/locales";
+import { listOpenRouterModels } from "../services/openrouter";
 import {
   deleteTelegramWebhook,
   setTelegramCommands,
-  syncTelegramBotProfile,
   setTelegramWebhook,
+  syncTelegramBotProfile,
 } from "../services/telegram";
 
-const localeMessageOverrideSchema = z.object({
-  startMessage: z.string().optional(),
-  countriesPage: z.string().optional(),
-  selectCountry: z.string().optional(),
-  currentlySelected: z.string().optional(),
-  alreadySelected: z.string().optional(),
-  countrySet: z.string().optional(),
-  contextCleared: z.string().optional(),
-  regenerating: z.string().optional(),
-  messageNotFound: z.string().optional(),
-  nothingToRegenerate: z.string().optional(),
-  contextNotFound: z.string().optional(),
-  unknownAction: z.string().optional(),
-  regenerateButton: z.string().optional(),
-  countryContext: z.string().optional(),
-}).strict();
+const localeMessageOverrideSchema = z
+  .object({
+    startMessage: z.string().optional(),
+    countriesPage: z.string().optional(),
+    selectCountry: z.string().optional(),
+    currentlySelected: z.string().optional(),
+    alreadySelected: z.string().optional(),
+    countrySet: z.string().optional(),
+    contextCleared: z.string().optional(),
+    regenerating: z.string().optional(),
+    messageNotFound: z.string().optional(),
+    nothingToRegenerate: z.string().optional(),
+    contextNotFound: z.string().optional(),
+    unknownAction: z.string().optional(),
+    regenerateButton: z.string().optional(),
+    countryContext: z.string().optional(),
+  })
+  .strict();
 
 const localeMessagesSchema = z
   .record(z.string(), localeMessageOverrideSchema)
@@ -38,7 +40,7 @@ const localeMessagesSchema = z
   .transform((map) => {
     const validCodes = new Set(SUPPORTED_LOCALES.map((l) => l.code));
     return Object.fromEntries(
-      Object.entries(map).filter(([key]) => validCodes.has(key))
+      Object.entries(map).filter(([key]) => validCodes.has(key)),
     );
   });
 
@@ -46,11 +48,18 @@ const createBotPayloadSchema = z.object({
   slug: z.string().min(1),
   name: z.string().min(1),
   description: z.string().default(""),
-  defaultCountryCode: z.string().trim().length(2).transform((value) => value.toUpperCase()).default("RU"),
+  defaultCountryCode: z
+    .string()
+    .trim()
+    .length(2)
+    .transform((value) => value.toUpperCase())
+    .default("RU"),
   defaultLocale: z.string().default(""),
   telegramBotToken: z.string().min(1),
   status: z.enum(["active", "paused"]).default("paused"),
-  strategyKey: z.literal("base_llm_chatbot_strategy").default("base_llm_chatbot_strategy"),
+  strategyKey: z
+    .literal("base_llm_chatbot_strategy")
+    .default("base_llm_chatbot_strategy"),
   llmProvider: z.literal("openrouter").default("openrouter"),
   llmModel: z.string().min(1),
   fallbackModels: z.array(z.string()).default([]),
@@ -61,15 +70,15 @@ const createBotPayloadSchema = z.object({
     .array(
       z.object({
         text: z.string().min(1),
-        action: z.string().min(1)
-      })
+        action: z.string().min(1),
+      }),
     )
     .default([]),
   localeMessages: localeMessagesSchema,
 });
 
 const updateBotPayloadSchema = createBotPayloadSchema.extend({
-  telegramBotToken: z.string().trim().optional()
+  telegramBotToken: z.string().trim().optional(),
 });
 
 const parseCreateBotPayload = async (request: Request) =>
@@ -109,13 +118,13 @@ const serializeAdminBot = async (database: DatabaseAdapter, botId: number) => {
     localeMessages: bot.localeMessages,
     createdAt: bot.createdAt,
     updatedAt: bot.updatedAt,
-    stats: await database.getBotStats(bot.id)
+    stats: await database.getBotStats(bot.id),
   };
 };
 
 export const createApiRoutes = ({
   environment,
-  database
+  database,
 }: {
   environment: ServerEnv;
   database: DatabaseAdapter;
@@ -124,20 +133,31 @@ export const createApiRoutes = ({
   const admin = new Hono();
   const db = new Hono();
 
+  console.log(
+    "createApiRoutes",
+    environment.ADMIN_USERNAME,
+    environment.ADMIN_PASSWORD,
+  );
+
   admin.use(
     "*",
     basicAuth({
       username: environment.ADMIN_USERNAME,
-      password: environment.ADMIN_PASSWORD
-    })
+      password: environment.ADMIN_PASSWORD,
+    }),
   );
 
   admin.get("/session", (c) => c.json({ ok: true }));
 
   admin.get("/errors", (c) => c.json(getErrorLog()));
-  admin.delete("/errors", (c) => { clearErrorLog(); return c.json({ ok: true }); });
+  admin.delete("/errors", (c) => {
+    clearErrorLog();
+    return c.json({ ok: true });
+  });
 
-  admin.get("/openrouter/models", async (c) => c.json(await listOpenRouterModels()));
+  admin.get("/openrouter/models", async (c) =>
+    c.json(await listOpenRouterModels()),
+  );
   admin.get("/countries", (c) => c.json(listCountries()));
   admin.get("/locales", (c) => c.json(SUPPORTED_LOCALES));
 
@@ -145,14 +165,14 @@ export const createApiRoutes = ({
 
   db.get("/summary", async (c) => c.json(await database.getDashboardSummary()));
 
-  db.get("/interactions", async (c) => c.json(await database.listRecentInteractions(50)));
+  db.get("/interactions", async (c) =>
+    c.json(await database.listRecentInteractions(50)),
+  );
 
   db.get("/bots", async (c) => {
     const bots = await database.listBots();
     return c.json(
-      await Promise.all(
-        bots.map((bot) => serializeAdminBot(database, bot.id))
-      )
+      await Promise.all(bots.map((bot) => serializeAdminBot(database, bot.id))),
     );
   });
 
@@ -172,7 +192,13 @@ export const createApiRoutes = ({
       const bot = await database.saveBot(payload);
       return c.json(await serializeAdminBot(database, bot.id), 201);
     } catch (error) {
-      return c.json({ error: error instanceof Error ? error.message : "Failed to create bot" }, 400);
+      return c.json(
+        {
+          error:
+            error instanceof Error ? error.message : "Failed to create bot",
+        },
+        400,
+      );
     }
   });
 
@@ -188,12 +214,19 @@ export const createApiRoutes = ({
       const bot = await database.saveBot({
         ...payload,
         id: botId,
-        telegramBotToken: payload.telegramBotToken?.trim() || existing.telegramBotToken,
-        telegramSecretToken: existing.telegramSecretToken
+        telegramBotToken:
+          payload.telegramBotToken?.trim() || existing.telegramBotToken,
+        telegramSecretToken: existing.telegramSecretToken,
       });
       return c.json(await serializeAdminBot(database, bot.id));
     } catch (error) {
-      return c.json({ error: error instanceof Error ? error.message : "Failed to update bot" }, 400);
+      return c.json(
+        {
+          error:
+            error instanceof Error ? error.message : "Failed to update bot",
+        },
+        400,
+      );
     }
   });
 
@@ -211,7 +244,10 @@ export const createApiRoutes = ({
   db.get("/bots/:id/users", async (c) => {
     const botId = Number(c.req.param("id"));
     const page = Math.max(1, Number(c.req.query("page") ?? 1));
-    const pageSize = Math.min(100, Math.max(1, Number(c.req.query("pageSize") ?? 20)));
+    const pageSize = Math.min(
+      100,
+      Math.max(1, Number(c.req.query("pageSize") ?? 20)),
+    );
     return c.json(await database.listBotUsers(botId, page, pageSize));
   });
 
@@ -240,7 +276,13 @@ export const createApiRoutes = ({
       await setTelegramWebhook(bot);
       return c.json({ ok: true });
     } catch (error) {
-      return c.json({ error: error instanceof Error ? error.message : "Webhook connect failed" }, 400);
+      return c.json(
+        {
+          error:
+            error instanceof Error ? error.message : "Webhook connect failed",
+        },
+        400,
+      );
     }
   });
 
@@ -255,7 +297,15 @@ export const createApiRoutes = ({
       await syncTelegramBotProfile(bot);
       return c.json({ ok: true });
     } catch (error) {
-      return c.json({ error: error instanceof Error ? error.message : "Telegram profile sync failed" }, 400);
+      return c.json(
+        {
+          error:
+            error instanceof Error
+              ? error.message
+              : "Telegram profile sync failed",
+        },
+        400,
+      );
     }
   });
 
@@ -269,7 +319,15 @@ export const createApiRoutes = ({
       await deleteTelegramWebhook(bot);
       return c.json({ ok: true });
     } catch (error) {
-      return c.json({ error: error instanceof Error ? error.message : "Webhook disconnect failed" }, 400);
+      return c.json(
+        {
+          error:
+            error instanceof Error
+              ? error.message
+              : "Webhook disconnect failed",
+        },
+        400,
+      );
     }
   });
 
@@ -278,8 +336,8 @@ export const createApiRoutes = ({
   api.get("/health", (c) =>
     c.json({
       name: "bot-farm-server",
-      status: "ok"
-    })
+      status: "ok",
+    }),
   );
 
   api.route("/admin", admin);

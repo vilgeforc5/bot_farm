@@ -13,7 +13,7 @@ export const createApp = ({
   environment: ServerEnv;
   database: DatabaseAdapter;
 }) => {
-  console.log("createApp: environment", environment);
+  console.log("createApp: environment", environment.DASHBOARD_ORIGIN);
   const app = new Hono();
 
   app.use("*", logger());
