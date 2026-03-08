@@ -18,6 +18,7 @@ import {
   isSupportedLocale,
   resolveMessages,
 } from "./locales";
+import { resolveStartText } from "./start-message";
 import { completeWithOpenRouter } from "./openrouter";
 import {
   answerCallbackQuery,
@@ -31,12 +32,12 @@ const isStartCommand = (text: string): boolean => /^\/start(?:@\w+)?(?:\s.*)?$/i
 const isCountryCommand = (text: string): boolean => /^\/country(?:@\w+)?(?:\s.*)?$/i.test(text);
 const isClearCommand = (text: string): boolean => /^\/clear(?:@\w+)?(?:\s.*)?$/i.test(text);
 
-const getBotMessages = (bot: BotRecord, countryCode: string) => {
-  const locale =
-    (bot.defaultLocale && isSupportedLocale(bot.defaultLocale) ? bot.defaultLocale : null) ??
-    getLocaleForCountry(countryCode);
-  return resolveMessages(locale, bot.localeMessages);
-};
+const getBotLocale = (bot: BotRecord, countryCode: string) =>
+  (bot.defaultLocale && isSupportedLocale(bot.defaultLocale) ? bot.defaultLocale : null) ??
+  getLocaleForCountry(countryCode);
+
+const getBotMessages = (bot: BotRecord, countryCode: string) =>
+  resolveMessages(getBotLocale(bot, countryCode), bot.localeMessages);
 
 const withTypingIndicator = async <T>(bot: BotRecord, chatId: string, task: () => Promise<T>): Promise<T> => {
   await sendTypingAction(bot, chatId);
@@ -80,8 +81,7 @@ const sendStartSequence = async (
   chatId: string,
   conversation: ConversationRecord
 ) => {
-  const msgs = getBotMessages(bot, conversation.countryCode);
-  const startText = msgs.startMessage.trim() || bot.helpMessage.trim() || getStrategy(bot.strategyKey).defaultStartMessage;
+  const startText = resolveStartText(bot, conversation.countryCode);
   await sendTelegramMessage(bot, chatId, startText, []);
   await sendCountryPrompt(bot, chatId, conversation);
 };
