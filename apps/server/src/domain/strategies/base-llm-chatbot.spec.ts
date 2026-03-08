@@ -50,7 +50,8 @@ describe("baseLlmChatbotStrategy", () => {
     });
 
     expect(execution.prompt).toContain("Отвечай кратко.");
-    expect(execution.prompt).toContain("Страна пользователя: 🇩🇪 Deutschland.");
+    expect(execution.prompt).toContain("Land des Benutzers: 🇩🇪 Deutschland.");
+    expect(execution.prompt).toContain("Erkläre keine kulturellen Normen");
     expect(execution.prompt).toContain("user: Подскажи локальные условия доставки");
   });
 });

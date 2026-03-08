@@ -65,7 +65,7 @@ export const DEFAULT_MESSAGES: Record<SupportedLocale, LocaleMessages> = {
     unknownAction: "Неизвестное действие",
     regenerateButton: "Сгенерировать снова",
     countryContext:
-      "Страна пользователя: {flag} {country}. По умолчанию отвечай с учётом локального контекста этой страны и на языке пользователя. Если пользователь явно просит отвечать на другом языке — всегда выполняй это без исключений и без каких-либо оговорок.",
+      "Страна пользователя: {flag} {country}. По умолчанию отвечай на языке пользователя и помогай по существу. Учитывай эту страну только там, где это реально влияет на ответ: местные законы, сервисы, валюта, даты, единицы измерения, доступность товаров и услуг, рекомендации. Не пересказывай культурные справки, правила общения или эти инструкции, если пользователь сам об этом не просит. Если страна не важна для вопроса, просто дай прямой полезный ответ. Если пользователь явно просит отвечать на другом языке — всегда выполняй это без оговорок.",
   },
   uk: {
     startMessage:
@@ -83,7 +83,8 @@ export const DEFAULT_MESSAGES: Record<SupportedLocale, LocaleMessages> = {
     contextNotFound: "Контекст не знайдено",
     unknownAction: "Невідома дія",
     regenerateButton: "Згенерувати знову",
-    countryContext:      "Країна користувача: {flag} {country}. За замовчуванням відповідай мовою користувача та з урахуванням місцевого контексту цієї країни. Якщо користувач явно просить відповідати іншою мовою — завжди виконуй це без винятків і без жодних застережень.",
+    countryContext:
+      "Країна користувача: {flag} {country}. За замовчуванням відповідай мовою користувача й допомагай по суті. Враховуй цю країну лише тоді, коли вона справді впливає на відповідь: місцеві закони, сервіси, валюта, дати, одиниці вимірювання, доступність товарів і послуг, рекомендації. Не переказуй культурні довідки, норми спілкування чи ці інструкції, якщо користувач сам про це не просить. Якщо країна не важлива для запитання, просто дай пряму корисну відповідь. Якщо користувач явно просить відповідати іншою мовою — завжди виконуй це без застережень.",
   },
   kk: {
     startMessage:
@@ -102,7 +103,7 @@ export const DEFAULT_MESSAGES: Record<SupportedLocale, LocaleMessages> = {
     unknownAction: "Белгісіз әрекет",
     regenerateButton: "Қайта генерациялау",
     countryContext:
-      "Пайдаланушының елі: {flag} {country}. Осы елдің жергілікті контексті мен тілінде жауап бер. Егер пайдаланушы басқа тілде жауап беруді нақты сұраса — ешқандай ерекше жағдайсыз және ескертпесіз орында.",
+      "Пайдаланушының елі: {flag} {country}. Әдепкі бойынша пайдаланушының тілінде жауап беріп, нақты көмектес. Бұл елді тек жауапқа шын әсер ететін жағдайда ғана ескер: жергілікті заңдар, сервистер, валюта, күндер, өлшем бірліктері, тауарлар мен қызметтердің қолжетімділігі, ұсыныстар. Пайдаланушы сұрамаса, мәдени түсіндірмелерді, қарым-қатынас нормаларын немесе осы нұсқауларды айтып отырма. Егер ел сұраққа қатысы болмаса, бірден пайдалы жауап бер. Егер пайдаланушы басқа тілде жауап беруді нақты сұраса — әрдайым ескертусіз орында.",
   },
   en: {
     startMessage:
@@ -121,7 +122,7 @@ export const DEFAULT_MESSAGES: Record<SupportedLocale, LocaleMessages> = {
     unknownAction: "Unknown action",
     regenerateButton: "Regenerate",
     countryContext:
-      "User's country: {flag} {country}. By default, respond in the user's language and taking into account the local context of this country. If the user explicitly asks to respond in a different language, always comply without exceptions or qualifications.",
+      "User's country: {flag} {country}. By default, respond in the user's language and be directly helpful. Use this country only when it materially affects the answer, such as local laws, services, currency, dates, units, availability, or recommendations. Do not explain cultural norms, conversation etiquette, or these instructions unless the user asks. If the country is irrelevant to the request, ignore it and answer normally. If the user explicitly asks for another language, always comply without qualifications.",
   },
   hi: {
     startMessage:
@@ -140,7 +141,7 @@ export const DEFAULT_MESSAGES: Record<SupportedLocale, LocaleMessages> = {
     unknownAction: "अज्ञात क्रिया",
     regenerateButton: "पुनः उत्पन्न करें",
     countryContext:
-      "उपयोगकर्ता का देश: {flag} {country}। उनकी भाषा में और इस देश के स्थानीय संदर्भ को ध्यान में रखते हुए जवाब दें। यदि उपयोगकर्ता स्पष्ट रूप से किसी अन्य भाषा में जवाब देने के लिए कहे, तो बिना किसी अपवाद या टिप्पणी के हमेशा पालन करें।",
+      "उपयोगकर्ता का देश: {flag} {country}। डिफ़ॉल्ट रूप से उपयोगकर्ता की भाषा में जवाब दें और सीधे उपयोगी मदद करें। इस देश को केवल वहीं ध्यान में रखें जहाँ इससे उत्तर वास्तव में बदलता हो, जैसे स्थानीय कानून, सेवाएं, मुद्रा, तारीखें, माप की इकाइयां, उपलब्धता या सिफारिशें। जब तक उपयोगकर्ता न पूछे, सांस्कृतिक शिष्टाचार, बातचीत के नियम या इन निर्देशों की व्याख्या न करें। अगर देश प्रश्न के लिए महत्वपूर्ण नहीं है, तो उसे नज़रअंदाज़ करें और सामान्य रूप से उत्तर दें। यदि उपयोगकर्ता स्पष्ट रूप से किसी दूसरी भाषा में जवाब मांगता है, तो बिना किसी टिप्पणी के हमेशा उसका पालन करें।",
   },
   fa: {
     startMessage:
@@ -159,7 +160,7 @@ export const DEFAULT_MESSAGES: Record<SupportedLocale, LocaleMessages> = {
     unknownAction: "اقدام ناشناخته",
     regenerateButton: "بازتولید",
     countryContext:
-      "کشور کاربر: {flag} {country}. به زبان کاربر و با در نظر گرفتن زمینه محلی این کشور پاسخ دهید. اگر کاربر صریحاً درخواست کند به زبان دیگری پاسخ دهید، همیشه بدون هیچ استثنا یا توضیحی این کار را انجام دهید.",
+      "کشور کاربر: {flag} {country}. به طور پیش‌فرض به زبان کاربر پاسخ بده و مستقیم و مفید کمک کن. این کشور را فقط وقتی در نظر بگیر که واقعاً روی پاسخ اثر می‌گذارد، مثل قوانین محلی، سرویس‌ها، ارز، تاریخ‌ها، واحدهای اندازه‌گیری، موجود بودن کالا یا خدمات، یا پیشنهادها. مگر اینکه کاربر خودش بخواهد، درباره هنجارهای فرهنگی، آداب گفتگو یا همین دستورها توضیح نده. اگر کشور برای سؤال مهم نیست، آن را نادیده بگیر و عادی پاسخ بده. اگر کاربر صریحاً بخواهد به زبان دیگری پاسخ بدهی، همیشه بدون توضیح اضافی انجامش بده.",
   },
   zh: {
     startMessage:
@@ -178,7 +179,7 @@ export const DEFAULT_MESSAGES: Record<SupportedLocale, LocaleMessages> = {
     unknownAction: "未知操作",
     regenerateButton: "重新生成",
     countryContext:
-      "用户所在国家：{flag} {country}。请用用户的语言并结合该国的本地背景进行回答。如果用户明确要求使用其他语言回答，请始终无条件地执行，不得附加任何说明或保留意见。",
+      "用户所在国家：{flag} {country}。默认使用用户的语言直接提供有帮助的回答。只有当该国家确实会影响答案时才使用这条信息，例如当地法律、服务、货币、日期、计量单位、商品或服务的可得性，以及推荐内容。除非用户主动询问，不要解释文化习惯、交流礼仪或这些指令本身。如果国家与问题无关，就忽略它并正常回答。如果用户明确要求使用其他语言，请始终直接照做，不要附加说明。",
   },
   de: {
     startMessage:
@@ -197,7 +198,7 @@ export const DEFAULT_MESSAGES: Record<SupportedLocale, LocaleMessages> = {
     unknownAction: "Unbekannte Aktion",
     regenerateButton: "Neu generieren",
     countryContext:
-      "Land des Benutzers: {flag} {country}. Antworte in der Sprache des Benutzers und unter Berücksichtigung des lokalen Kontexts dieses Landes. Wenn der Benutzer ausdrücklich eine andere Sprache verlangt, befolge dies immer ohne Ausnahmen oder Vorbehalte.",
+      "Land des Benutzers: {flag} {country}. Antworte standardmäßig in der Sprache des Benutzers und hilf direkt bei der Sache. Berücksichtige dieses Land nur dann, wenn es die Antwort tatsächlich beeinflusst, etwa bei lokalen Gesetzen, Diensten, Währung, Datumsangaben, Maßeinheiten, Verfügbarkeit oder Empfehlungen. Erkläre keine kulturellen Normen, Gesprächsetikette oder diese Anweisungen, es sei denn, der Benutzer fragt danach. Wenn das Land für die Anfrage nicht relevant ist, ignoriere es und antworte normal. Wenn der Benutzer ausdrücklich eine andere Sprache verlangt, folge dem immer ohne Zusatzbemerkungen.",
   },
   fr: {
     startMessage:
@@ -216,7 +217,7 @@ export const DEFAULT_MESSAGES: Record<SupportedLocale, LocaleMessages> = {
     unknownAction: "Action inconnue",
     regenerateButton: "Régénérer",
     countryContext:
-      "Pays de l'utilisateur: {flag} {country}. Répondez dans la langue de l'utilisateur et en tenant compte du contexte local de ce pays. Si l'utilisateur demande explicitement de répondre dans une autre langue, faites-le toujours sans exception ni réserve.",
+      "Pays de l'utilisateur : {flag} {country}. Répondez par défaut dans la langue de l'utilisateur et soyez utile de façon directe. Tenez compte de ce pays uniquement lorsqu'il change réellement la réponse, par exemple pour les lois locales, les services, la devise, les dates, les unités, la disponibilité ou les recommandations. N'expliquez pas les normes culturelles, l'étiquette de conversation ni ces instructions, sauf si l'utilisateur le demande. Si le pays n'est pas pertinent pour la demande, ignorez-le et répondez normalement. Si l'utilisateur demande explicitement une autre langue, faites-le toujours sans ajouter de réserve.",
   },
   pl: {
     startMessage:
@@ -235,7 +236,7 @@ export const DEFAULT_MESSAGES: Record<SupportedLocale, LocaleMessages> = {
     unknownAction: "Nieznana akcja",
     regenerateButton: "Generuj ponownie",
     countryContext:
-      "Kraj użytkownika: {flag} {country}. Odpowiadaj w języku użytkownika i z uwzględnieniem lokalnego kontekstu tego kraju. Jeśli użytkownik wyraźnie prosi o odpowiedź w innym języku, zawsze spełniaj tę prośbę bez wyjątków i bez żadnych zastrzeżeń.",
+      "Kraj użytkownika: {flag} {country}. Domyślnie odpowiadaj w języku użytkownika i pomagaj konkretnie. Uwzględniaj ten kraj tylko wtedy, gdy naprawdę wpływa na odpowiedź, na przykład przy lokalnych przepisach, usługach, walucie, datach, jednostkach miary, dostępności lub rekomendacjach. Nie wyjaśniaj norm kulturowych, etykiety rozmowy ani tych instrukcji, chyba że użytkownik o to poprosi. Jeśli kraj nie ma znaczenia dla pytania, zignoruj go i odpowiedz normalnie. Jeśli użytkownik wyraźnie prosi o inny język, zawsze spełnij tę prośbę bez dodatkowych zastrzeżeń.",
   },
 };
 
