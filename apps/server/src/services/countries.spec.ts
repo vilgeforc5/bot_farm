@@ -8,6 +8,7 @@ import {
   getCountryPage,
   parseCountryAction,
 } from "./countries";
+import { DEFAULT_MESSAGES } from "./locales";
 
 describe("countries helpers", () => {
   it("uses Russia as the default country", () => {
@@ -45,13 +46,17 @@ describe("countries helpers", () => {
 
   it("formats selection and prompt texts with the chosen country", () => {
     const country = getCountryByCode("DE");
+    const messages = DEFAULT_MESSAGES.ru;
 
-    expect(buildCountrySelectionText(country)).toContain("Сейчас выбрана: 🇩🇪 Deutschland.");
+    expect(buildCountrySelectionText(country, messages)).toContain("Сейчас выбрана: 🇩🇪 Deutschland.");
     expect(
-      buildCountryContext({
-        flag: country.flag,
-        nativeName: country.nativeName,
-      }),
+      buildCountryContext(
+        {
+          flag: country.flag,
+          nativeName: country.nativeName,
+        },
+        messages.countryContext,
+      ),
     ).toContain(`${country.flag} ${country.nativeName}`);
   });
 });

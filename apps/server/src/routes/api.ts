@@ -34,11 +34,16 @@ const localeMessageOverrideSchema = z
   })
   .strict();
 
+const supportedLocaleCodes = SUPPORTED_LOCALES.map((locale) => locale.code) as [
+  (typeof SUPPORTED_LOCALES)[number]["code"],
+  ...(typeof SUPPORTED_LOCALES)[number]["code"][],
+];
+
 const localeMessagesSchema = z
   .record(z.string(), localeMessageOverrideSchema)
   .default({})
   .transform((map) => {
-    const validCodes = new Set(SUPPORTED_LOCALES.map((l) => l.code));
+    const validCodes = new Set<string>(supportedLocaleCodes);
     return Object.fromEntries(
       Object.entries(map).filter(([key]) => validCodes.has(key)),
     );
@@ -54,7 +59,7 @@ const createBotPayloadSchema = z.object({
     .length(2)
     .transform((value) => value.toUpperCase())
     .default("RU"),
-  defaultLocale: z.string().default(""),
+  defaultLocale: z.union([z.literal(""), z.enum(supportedLocaleCodes)]).default(""),
   telegramBotToken: z.string().min(1),
   status: z.enum(["active", "paused"]).default("paused"),
   strategyKey: z

@@ -29,6 +29,7 @@ describe("typeorm adapter persistence", () => {
       name: "Support Bot",
       description: "Intro text",
       defaultCountryCode: "DE",
+      defaultLocale: "",
       telegramBotToken: "123:abc",
       status: "active",
       strategyKey: "base_llm_chatbot_strategy",
@@ -38,7 +39,8 @@ describe("typeorm adapter persistence", () => {
       contextLimit: 300,
       systemPrompt: "Be concise.",
       helpMessage: "Help",
-      buttons: []
+      buttons: [],
+      localeMessages: {},
     });
     const conversation = await writer.getOrCreateConversation(bot.id, "chat-1", "user-1");
     expect(conversation.countryCode).toBe("DE");
