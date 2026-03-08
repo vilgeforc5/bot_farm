@@ -8,11 +8,12 @@ import { createWebhooksRoutes } from "./routes/webhooks";
 
 export const createApp = ({
   environment,
-  database
+  database,
 }: {
   environment: ServerEnv;
   database: DatabaseAdapter;
 }) => {
+  console.log("createApp: environment", environment);
   const app = new Hono();
 
   app.use("*", logger());
@@ -21,8 +22,8 @@ export const createApp = ({
     cors({
       origin: environment.DASHBOARD_ORIGIN,
       allowHeaders: ["Content-Type", "Authorization"],
-      allowMethods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
-    })
+      allowMethods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    }),
   );
 
   app.get("/", (c) =>
@@ -30,8 +31,8 @@ export const createApp = ({
       name: "bot-farm-server",
       status: "ok",
       api: "/api",
-      webhooks: "/webhooks"
-    })
+      webhooks: "/webhooks",
+    }),
   );
 
   app.route("/api", createApiRoutes({ environment, database }));
@@ -42,5 +43,5 @@ export const createApp = ({
 
 export const app = createApp({
   environment: env,
-  database: store
+  database: store,
 });
