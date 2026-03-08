@@ -1,0 +1,27 @@
+services:
+  server:
+    build:
+      context: ./apps/server
+      dockerfile: Dockerfile
+    env_file:
+      - ./apps/server/.env
+    ports:
+      - "3001:3001"
+    volumes:
+      - bot_farm_server_data:/app/data
+    restart: unless-stopped
+
+  dashboard:
+    build:
+      context: ./apps/dashboard
+      dockerfile: Dockerfile
+      args:
+        VITE_SERVER_URL: http://server:3001
+    depends_on:
+      - server
+    ports:
+      - "3000:3000"
+    restart: unless-stopped
+
+volumes:
+  bot_farm_server_data:

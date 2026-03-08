@@ -1,0 +1,52 @@
+@import url("https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Manrope:wght@400;500;600;700;800&display=swap");
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Manrope", ui-sans-serif, system-ui, sans-serif;
+}
+
+:root {
+  --sea-ink: #1f1a17;
+  --sea-ink-soft: #5f5750;
+  --lagoon: #d97745;
+  --lagoon-deep: #b7562a;
+  --palm: #0f766e;
+  --sand: #f5ebdc;
+  --foam: #faf5ee;
+  --surface: rgba(255, 255, 255, 0.8);
+  --surface-strong: rgba(255, 255, 255, 0.94);
+  --line: rgba(31, 26, 23, 0.12);
+  --inset-glint: rgba(255, 255, 255, 0.86);
+  --kicker: rgba(183, 86, 42, 0.88);
+  --bg-base: #f2e7d7;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  color: var(--sea-ink);
+  font-family: var(--font-sans);
+  background-color: var(--bg-base);
+  background:
+    radial-gradient(1100px 620px at -8% -10%, rgba(217, 119, 69, 0.22), transparent 58%),
+    radial-gradient(1050px 620px at 112% -12%, rgba(15, 118, 110, 0.16), transparent 62%),
+    linear-gradient(180deg, #fbf7f1 0%, #f2e7d7 100%);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
