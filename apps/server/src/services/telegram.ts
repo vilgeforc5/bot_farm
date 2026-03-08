@@ -1,4 +1,5 @@
-import { Bot, InlineKeyboard } from "grammy";
+import { fileURLToPath } from "node:url";
+import { Bot, InlineKeyboard, InputFile } from "grammy";
 import type { Update } from "grammy/types";
 import { env } from "../config/env";
 import type { BotInlineButton, BotRecord } from "../domain/types";
@@ -7,6 +8,9 @@ const clients = new Map<string, Bot>();
 const TELEGRAM_NAME_LIMIT = 64;
 const TELEGRAM_DESCRIPTION_LIMIT = 512;
 const TELEGRAM_SHORT_DESCRIPTION_LIMIT = 120;
+const TELEGRAM_BOT_AVATAR_PATH = fileURLToPath(
+  new URL("../chatgpt_logo.jpg", import.meta.url),
+);
 
 const getClient = (bot: BotRecord): Bot => {
   const key = `${bot.id}:${bot.telegramBotToken}`;
@@ -94,6 +98,7 @@ const trimToLimit = (value: string, limit: number) =>
   value.trim().slice(0, limit);
 
 export const syncTelegramBotProfile = async (bot: BotRecord): Promise<void> => {
+  const client = getClient(bot);
   const name = trimToLimit(bot.name, TELEGRAM_NAME_LIMIT);
   const description = trimToLimit(bot.description, TELEGRAM_DESCRIPTION_LIMIT);
   const shortDescription = trimToLimit(
@@ -102,10 +107,14 @@ export const syncTelegramBotProfile = async (bot: BotRecord): Promise<void> => {
   );
 
   if (name) {
-    await getClient(bot).api.setMyName(name);
+    await client.api.setMyName(name);
   }
-  await getClient(bot).api.setMyDescription(description);
-  await getClient(bot).api.setMyShortDescription(shortDescription);
+  await client.api.setMyDescription(description);
+  await client.api.setMyShortDescription(shortDescription);
+  await client.api.setMyProfilePhoto({
+    type: "static",
+    photo: new InputFile(TELEGRAM_BOT_AVATAR_PATH),
+  });
 };
 
 export const setTelegramWebhook = async (bot: BotRecord): Promise<void> => {
