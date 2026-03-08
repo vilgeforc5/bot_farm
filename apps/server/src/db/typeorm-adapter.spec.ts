@@ -68,7 +68,8 @@ describe("typeorm adapter persistence", () => {
       totalBots: 1,
       activeBots: 1,
       totalConversations: 1,
-      totalMessages: 2
+      totalMessages: 2,
+      totalUniqueUsers: 1
     });
 
     await expect(reader.getBotStats(bot.id)).resolves.toEqual(

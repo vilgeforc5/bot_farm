@@ -83,6 +83,7 @@ export interface DashboardSummary {
   activeBots: number;
   totalConversations: number;
   totalMessages: number;
+  totalUniqueUsers: number;
 }
 
 export interface InteractionRecord {

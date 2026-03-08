@@ -198,11 +198,15 @@ function DashboardPage() {
     <main className="mx-auto w-full max-w-[1500px] px-4 pb-10 sm:px-6 lg:px-8">
       <DashboardHero serverUrl={auth.serverUrl} />
 
-      <section className="mb-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <section className="mb-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
         <MetricCard label="Всего ботов" value={summary?.totalBots ?? 0} />
         <MetricCard label="Активных ботов" value={summary?.activeBots ?? 0} />
         <MetricCard label="Диалоги" value={summary?.totalConversations ?? 0} />
         <MetricCard label="Сообщения" value={summary?.totalMessages ?? 0} />
+        <MetricCard
+          label="Уникальные пользователи"
+          value={summary?.totalUniqueUsers ?? 0}
+        />
       </section>
 
       <Card className="mb-8 shadow-[0_24px_60px_rgba(0,0,0,0.06)]">

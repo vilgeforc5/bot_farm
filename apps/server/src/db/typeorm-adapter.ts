@@ -652,7 +652,11 @@ export const createTypeOrmDatabaseAdapter = ({
               COUNT(*) AS total_bots,
               SUM(CASE WHEN status = 'active' THEN 1 ELSE 0 END) AS active_bots,
               (SELECT COUNT(*) FROM conversations) AS total_conversations,
-              (SELECT COUNT(*) FROM messages) AS total_messages
+              (SELECT COUNT(*) FROM messages) AS total_messages,
+              (
+                SELECT COUNT(DISTINCT user_id)
+                FROM conversations
+              ) AS total_unique_users
             FROM bots
           `
         )) as Array<Record<string, number | null>>;
@@ -662,7 +666,8 @@ export const createTypeOrmDatabaseAdapter = ({
           totalBots: Number(row?.total_bots ?? 0),
           activeBots: Number(row?.active_bots ?? 0),
           totalConversations: Number(row?.total_conversations ?? 0),
-          totalMessages: Number(row?.total_messages ?? 0)
+          totalMessages: Number(row?.total_messages ?? 0),
+          totalUniqueUsers: Number(row?.total_unique_users ?? 0)
         };
       });
     },

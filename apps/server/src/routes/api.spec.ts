@@ -102,7 +102,8 @@ describe("admin db api", () => {
       totalBots: 1,
       activeBots: 0,
       totalConversations: 0,
-      totalMessages: 0
+      totalMessages: 0,
+      totalUniqueUsers: 0
     });
 
     const listResponse = await api.request("/admin/db/bots", {
