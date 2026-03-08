@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import { describe, expect, it } from "vitest";
-import { makeDefaultDraft, parsePayload } from "./index";
+import { makeDefaultDraft, parsePayload } from "../components/dashboard/bot-draft";
 
 describe("dashboard bot draft helpers", () => {
   it("creates the expected default draft", () => {
@@ -9,20 +9,20 @@ describe("dashboard bot draft helpers", () => {
       slug: "",
       name: "",
       description: "",
+      defaultCountryCode: "RU",
       telegramBotToken: "",
       status: "paused",
-      llmModel: "openrouter/auto",
-      fallbackModels: "",
+      llmModel: "openrouter/free",
+      fallbackModels: [],
       contextLimit: "300",
       systemPrompt: "",
-      buttonsJson: JSON.stringify(
-        [
-          { text: "Clear Context", action: "clear_context" },
-          { text: "Help", action: "show_help" }
-        ],
-        null,
-        2
-      )
+      startMessage: [
+        "Привет. Я готов помочь.",
+        "Напишите ваш вопрос обычным сообщением.",
+        "Команды:",
+        "- /country: выбрать страну",
+        "- /clear: очистить контекст",
+      ].join("\n"),
     });
   });
 
@@ -32,43 +32,47 @@ describe("dashboard bot draft helpers", () => {
       slug: "  support-bot  ",
       name: "  Support Bot  ",
       description: "  Handles operator requests  ",
+      defaultCountryCode: " de ",
       telegramBotToken: "  123:abc  ",
       status: "active",
       llmModel: "  openrouter/gpt-4.1-mini  ",
-      fallbackModels: " openrouter/auto \n\n openrouter/deepseek-chat ",
+      fallbackModels: [" openrouter/free ", " ", " openrouter/deepseek-chat "],
       contextLimit: "450",
       systemPrompt: "  Keep replies concise.  ",
-      buttonsJson: JSON.stringify([
-        { text: "FAQ", action: "faq" },
-        { text: "Escalate", action: "handoff" }
-      ])
+      startMessage: "  Привет и напиши вопрос.  ",
     });
 
     expect(payload).toEqual({
       slug: "support-bot",
       name: "Support Bot",
       description: "Handles operator requests",
+      defaultCountryCode: "DE",
       telegramBotToken: "123:abc",
       status: "active",
       strategyKey: "base_llm_chatbot_strategy",
       llmProvider: "openrouter",
       llmModel: "openrouter/gpt-4.1-mini",
-      fallbackModels: ["openrouter/auto", "openrouter/deepseek-chat"],
+      fallbackModels: ["openrouter/free", "openrouter/deepseek-chat"],
       contextLimit: 450,
       systemPrompt: "Keep replies concise.",
-      buttons: [
-        { text: "FAQ", action: "faq" },
-        { text: "Escalate", action: "handoff" }
-      ]
+      helpMessage: "Привет и напиши вопрос.",
+      buttons: []
     });
   });
 
-  it("throws when the inline buttons value is not valid json", () => {
-    expect(() =>
-      parsePayload({
+  it("omits telegram token from payload when edit form leaves it blank", () => {
+    const payload = parsePayload(
+      {
         ...makeDefaultDraft(),
-        buttonsJson: "{"
-      })
-    ).toThrow();
+        slug: "support-bot",
+        name: "Support Bot",
+        defaultCountryCode: "jp",
+        telegramBotToken: "   ",
+      },
+      { requireTelegramBotToken: false }
+    );
+
+    expect(payload).not.toHaveProperty("telegramBotToken");
+    expect(payload.defaultCountryCode).toBe("JP");
   });
 });

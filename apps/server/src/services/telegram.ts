@@ -4,6 +4,8 @@ import { env } from "../config/env";
 import type { BotInlineButton, BotRecord } from "../domain/types";
 
 const clients = new Map<string, Bot>();
+const TELEGRAM_DESCRIPTION_LIMIT = 512;
+const TELEGRAM_SHORT_DESCRIPTION_LIMIT = 120;
 
 const getClient = (bot: BotRecord): Bot => {
   const key = `${bot.id}:${bot.telegramBotToken}`;
@@ -35,8 +37,21 @@ export const sendTelegramMessage = async (
   chatId: string,
   text: string,
   buttons: BotInlineButton[][]
+): Promise<number> => {
+  const message = await getClient(bot).api.sendMessage(chatId, text, {
+    reply_markup: buildInlineKeyboard(buttons)
+  });
+  return Number((message as { message_id: number }).message_id);
+};
+
+export const editTelegramMessage = async (
+  bot: BotRecord,
+  chatId: string,
+  messageId: number,
+  text: string,
+  buttons: BotInlineButton[][]
 ): Promise<void> => {
-  await getClient(bot).api.sendMessage(chatId, text, {
+  await getClient(bot).api.editMessageText(chatId, messageId, text, {
     reply_markup: buildInlineKeyboard(buttons)
   });
 };
@@ -45,6 +60,28 @@ export const answerCallbackQuery = async (bot: BotRecord, callbackQueryId: strin
   await getClient(bot).api.answerCallbackQuery(callbackQueryId, {
     text
   });
+};
+
+export const sendTypingAction = async (bot: BotRecord, chatId: string): Promise<void> => {
+  await getClient(bot).api.sendChatAction(chatId, "typing");
+};
+
+export const setTelegramCommands = async (bot: BotRecord): Promise<void> => {
+  await getClient(bot).api.setMyCommands([
+    { command: "start", description: "Показать стартовое сообщение" },
+    { command: "country", description: "Выбрать страну заново" },
+    { command: "clear", description: "Очистить контекст" }
+  ]);
+};
+
+const trimToLimit = (value: string, limit: number) => value.trim().slice(0, limit);
+
+export const syncTelegramBotProfile = async (bot: BotRecord): Promise<void> => {
+  const description = trimToLimit(bot.description, TELEGRAM_DESCRIPTION_LIMIT);
+  const shortDescription = trimToLimit(bot.description, TELEGRAM_SHORT_DESCRIPTION_LIMIT);
+
+  await getClient(bot).api.setMyDescription(description);
+  await getClient(bot).api.setMyShortDescription(shortDescription);
 };
 
 export const setTelegramWebhook = async (bot: BotRecord): Promise<void> => {

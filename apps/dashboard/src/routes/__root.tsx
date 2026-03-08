@@ -1,6 +1,7 @@
+import { TanStackDevtools } from "@tanstack/react-devtools";
 import { Outlet, createRootRoute } from "@tanstack/react-router";
 import { TanStackRouterDevtoolsPanel } from "@tanstack/react-router-devtools";
-import { TanStackDevtools } from "@tanstack/react-devtools";
+import { Toaster } from "../components/ui/sonner";
 import { clearAuth, readAuth } from "../lib/auth";
 import "../styles.css";
 
@@ -15,8 +16,12 @@ function RootComponent() {
     <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,rgba(217,119,69,0.18),transparent_28%),radial-gradient(circle_at_bottom_right,rgba(15,118,110,0.16),transparent_28%),linear-gradient(180deg,#fbf7f1_0%,#f2e7d7_100%)] text-stone-900">
       <header className="mx-auto flex w-full max-w-7xl items-center justify-between px-4 py-6 sm:px-6 lg:px-8">
         <div>
-          <p className="text-[11px] uppercase tracking-[0.28em] text-stone-500">TanStack Dashboard</p>
-          <h1 className="text-2xl font-semibold tracking-tight">Bot Farm Control</h1>
+          <p className="text-[11px] uppercase tracking-[0.28em] text-stone-500">
+            Панель оператора
+          </p>
+          <h1 className="text-2xl font-semibold tracking-tight">
+            Ферма Telegram-ботов
+          </h1>
         </div>
         <div className="flex items-center gap-3">
           {auth ? (
@@ -33,12 +38,13 @@ function RootComponent() {
               }}
               type="button"
             >
-              Logout
+              Выйти
             </button>
           ) : null}
         </div>
       </header>
       <Outlet />
+      <Toaster position="top-right" />
       <TanStackDevtools
         config={{
           position: "bottom-right",

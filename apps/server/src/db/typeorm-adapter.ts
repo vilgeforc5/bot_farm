@@ -3,6 +3,7 @@ import { mkdirSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import { dirname } from "node:path";
 import { DataSource, EntitySchema } from "typeorm";
+import { getCountryByCode } from "../services/countries";
 import { createSecretCodec } from "../services/secrets";
 import type {
   BotInlineButton,
@@ -22,6 +23,7 @@ export interface SaveBotInput {
   slug: string;
   name: string;
   description: string;
+  defaultCountryCode: string;
   telegramBotToken: string;
   telegramSecretToken?: string;
   status: BotStatus;
@@ -31,6 +33,7 @@ export interface SaveBotInput {
   fallbackModels: string[];
   contextLimit: number;
   systemPrompt: string;
+  helpMessage: string;
   buttons: BotInlineButton[];
 }
 
@@ -49,10 +52,14 @@ export interface DatabaseAdapter {
   getOrCreateConversation(botId: number, chatId: string, userId: string): Promise<ConversationRecord>;
   getConversationById(id: number): Promise<ConversationRecord | null>;
   updateConversationSummary(conversationId: number, summaryContext: string): Promise<void>;
+  updateConversationCountry(conversationId: number, countryCode: string, countryName: string): Promise<void>;
   clearConversation(botId: number, chatId: string, userId: string): Promise<void>;
   addMessage(conversationId: number, role: MessageRole, text: string, telegramMessageId?: string): Promise<MessageRecord>;
   getMessageById(id: number): Promise<MessageRecord | null>;
+  getMessageByTelegramMessageId(conversationId: number, telegramMessageId: string): Promise<MessageRecord | null>;
+  updateMessageText(id: number, text: string): Promise<void>;
   listRecentMessages(conversationId: number, limit?: number): Promise<MessageRecord[]>;
+  listMessagesBefore(conversationId: number, beforeMessageId: number, limit?: number): Promise<MessageRecord[]>;
   addUsage(record: Omit<UsageRecord, "id" | "createdAt">): Promise<UsageRecord>;
   getBotStats(botId: number): Promise<BotStats>;
   getDashboardSummary(): Promise<DashboardSummary>;
@@ -66,6 +73,7 @@ interface BotRow {
   slug: string;
   name: string;
   description: string;
+  defaultCountryCode: string;
   telegramBotToken: string;
   telegramSecretToken: string;
   status: BotStatus;
@@ -75,6 +83,7 @@ interface BotRow {
   fallbackModels: string;
   contextLimit: number;
   systemPrompt: string;
+  helpMessage: string;
   buttonsJson: string;
   createdAt: string;
   updatedAt: string;
@@ -86,6 +95,8 @@ interface ConversationRow {
   chatId: string;
   userId: string;
   summaryContext: string;
+  countryCode: string;
+  countryName: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -120,6 +131,7 @@ const BotSchema = new EntitySchema<BotRow>({
     slug: { type: String, unique: true },
     name: { type: String },
     description: { type: String, default: "" },
+    defaultCountryCode: { name: "default_country_code", type: String, default: "RU" },
     telegramBotToken: { name: "telegram_bot_token", type: String },
     telegramSecretToken: { name: "telegram_secret_token", type: String },
     status: { type: String },
@@ -129,6 +141,7 @@ const BotSchema = new EntitySchema<BotRow>({
     fallbackModels: { name: "fallback_models", type: String, default: "[]" },
     contextLimit: { name: "context_limit", type: Number, default: 300 },
     systemPrompt: { name: "system_prompt", type: String, default: "" },
+    helpMessage: { name: "help_message", type: String, default: "" },
     buttonsJson: { name: "buttons_json", type: String, default: "[]" },
     createdAt: { name: "created_at", type: String },
     updatedAt: { name: "updated_at", type: String }
@@ -150,6 +163,8 @@ const ConversationSchema = new EntitySchema<ConversationRow>({
     chatId: { name: "chat_id", type: String },
     userId: { name: "user_id", type: String },
     summaryContext: { name: "summary_context", type: String, default: "" },
+    countryCode: { name: "country_code", type: String, default: "RU" },
+    countryName: { name: "country_name", type: String, default: "Россия" },
     createdAt: { name: "created_at", type: String },
     updatedAt: { name: "updated_at", type: String }
   }
@@ -190,6 +205,7 @@ const mapBot = (row: BotRow, decryptSecret: (value: string) => string): BotRecor
   slug: row.slug,
   name: row.name,
   description: row.description,
+  defaultCountryCode: row.defaultCountryCode,
   telegramBotToken: decryptSecret(row.telegramBotToken),
   telegramSecretToken: decryptSecret(row.telegramSecretToken),
   status: row.status,
@@ -199,6 +215,7 @@ const mapBot = (row: BotRow, decryptSecret: (value: string) => string): BotRecor
   fallbackModels: JSON.parse(row.fallbackModels) as string[],
   contextLimit: row.contextLimit,
   systemPrompt: row.systemPrompt,
+  helpMessage: row.helpMessage,
   buttons: JSON.parse(row.buttonsJson) as BotInlineButton[],
   createdAt: row.createdAt,
   updatedAt: row.updatedAt
@@ -210,6 +227,8 @@ const mapConversation = (row: ConversationRow): ConversationRecord => ({
   chatId: row.chatId,
   userId: row.userId,
   summaryContext: row.summaryContext,
+  countryCode: row.countryCode,
+  countryName: row.countryName,
   createdAt: row.createdAt,
   updatedAt: row.updatedAt
 });
@@ -249,277 +268,435 @@ export const createTypeOrmDatabaseAdapter = ({
 
   mkdirSync(dirname(dbPath), { recursive: true });
 
-  const dataSource = new DataSource({
-    type: "sqljs",
-    location: dbPath,
-    autoSave: true,
-    entities: [BotSchema, ConversationSchema, MessageSchema, UsageSchema],
-    synchronize: true,
-    logging: false
-  });
+  const createDataSource = () =>
+    new DataSource({
+      type: "sqljs",
+      location: dbPath,
+      entities: [BotSchema, ConversationSchema, MessageSchema, UsageSchema],
+      synchronize: true,
+      logging: false
+    });
 
-  const dataSourcePromise = dataSource.initialize();
+  let operationQueue = Promise.resolve();
 
-  const getDataSource = (): Promise<DataSource> => dataSourcePromise;
+  const runSerialized = <T>(operation: () => Promise<T>): Promise<T> => {
+    const result = operationQueue.then(operation, operation);
+    operationQueue = result.then(
+      () => undefined,
+      () => undefined
+    );
+    return result;
+  };
+
+  const withDataSource = <T>(
+    operation: (dataSource: DataSource) => Promise<T>,
+    options?: { persist?: boolean }
+  ): Promise<T> =>
+    runSerialized(async () => {
+      const dataSource = createDataSource();
+      await dataSource.initialize();
+
+      try {
+        const result = await operation(dataSource);
+        if (options?.persist) {
+          const driver = dataSource.driver as { save?: () => Promise<void> };
+          await driver.save?.();
+        }
+        return result;
+      } finally {
+        if (dataSource.isInitialized) {
+          await dataSource.destroy();
+        }
+      }
+    });
 
   return {
     async listBots() {
-      const repository = (await getDataSource()).getRepository(BotSchema);
-      const rows = await repository.find({ order: { createdAt: "DESC" } });
-      return rows.map((row) => mapBot(row, decryptSecret));
+      return withDataSource(async (dataSource) => {
+        const rows = await dataSource.getRepository(BotSchema).find({
+          order: { createdAt: "DESC" }
+        });
+        return rows.map((row) => mapBot(row, decryptSecret));
+      });
     },
 
     async getBotById(id) {
-      const repository = (await getDataSource()).getRepository(BotSchema);
-      const row = await repository.findOneBy({ id });
-      return row ? mapBot(row, decryptSecret) : null;
+      return withDataSource(async (dataSource) => {
+        const row = await dataSource.getRepository(BotSchema).findOneBy({ id });
+        return row ? mapBot(row, decryptSecret) : null;
+      });
     },
 
     async getBotBySlug(slug) {
-      const repository = (await getDataSource()).getRepository(BotSchema);
-      const row = await repository.findOneBy({ slug });
-      return row ? mapBot(row, decryptSecret) : null;
+      return withDataSource(async (dataSource) => {
+        const row = await dataSource.getRepository(BotSchema).findOneBy({ slug });
+        return row ? mapBot(row, decryptSecret) : null;
+      });
     },
 
     async saveBot(input) {
-      const repository = (await getDataSource()).getRepository(BotSchema);
-      const now = new Date().toISOString();
-      const secretToken = input.telegramSecretToken?.trim() || randomUUID();
-      const payload: Omit<BotRow, "id" | "createdAt"> & Partial<Pick<BotRow, "createdAt">> = {
-        slug: input.slug,
-        name: input.name,
-        description: input.description,
-        telegramBotToken: encryptSecret(input.telegramBotToken),
-        telegramSecretToken: encryptSecret(secretToken),
-        status: input.status,
-        strategyKey: input.strategyKey,
-        llmProvider: input.llmProvider,
-        llmModel: input.llmModel,
-        fallbackModels: JSON.stringify(input.fallbackModels),
-        contextLimit: input.contextLimit,
-        systemPrompt: input.systemPrompt,
-        buttonsJson: JSON.stringify(input.buttons),
-        updatedAt: now
-      };
+      return withDataSource(
+        async (dataSource) => {
+          const repository = dataSource.getRepository(BotSchema);
+          const now = new Date().toISOString();
+          const secretToken = input.telegramSecretToken?.trim() || randomUUID();
+          const payload: Omit<BotRow, "id" | "createdAt"> &
+            Partial<Pick<BotRow, "createdAt">> = {
+            slug: input.slug,
+            name: input.name,
+            description: input.description,
+            defaultCountryCode: input.defaultCountryCode,
+            telegramBotToken: encryptSecret(input.telegramBotToken),
+            telegramSecretToken: encryptSecret(secretToken),
+            status: input.status,
+            strategyKey: input.strategyKey,
+            llmProvider: input.llmProvider,
+            llmModel: input.llmModel,
+            fallbackModels: JSON.stringify(input.fallbackModels),
+            contextLimit: input.contextLimit,
+            systemPrompt: input.systemPrompt,
+            helpMessage: input.helpMessage,
+            buttonsJson: JSON.stringify(input.buttons),
+            updatedAt: now
+          };
 
-      if (input.id) {
-        await repository.update({ id: input.id }, payload);
-        return (await this.getBotById(input.id))!;
-      }
+          if (input.id) {
+            await repository.update({ id: input.id }, payload);
+            const row = await repository.findOneByOrFail({ id: input.id });
+            return mapBot(row, decryptSecret);
+          }
 
-      const created = await repository.save(
-        repository.create({
-          ...payload,
-          createdAt: now
-        })
+          const created = await repository.save(
+            repository.create({
+              ...payload,
+              createdAt: now
+            })
+          );
+          return mapBot(created, decryptSecret);
+        },
+        { persist: true }
       );
-      return (await this.getBotById(created.id))!;
     },
 
     async setBotStatus(id, status) {
-      const repository = (await getDataSource()).getRepository(BotSchema);
-      await repository.update({ id }, { status, updatedAt: new Date().toISOString() });
+      return withDataSource(
+        async (dataSource) => {
+          await dataSource.getRepository(BotSchema).update(
+            { id },
+            { status, updatedAt: new Date().toISOString() }
+          );
+        },
+        { persist: true }
+      );
     },
 
     async getOrCreateConversation(botId, chatId, userId) {
-      const repository = (await getDataSource()).getRepository(ConversationSchema);
-      const existing = await repository.findOneBy({ botId, chatId, userId });
-      if (existing) {
-        return mapConversation(existing);
-      }
+      return withDataSource(
+        async (dataSource) => {
+          const botRepository = dataSource.getRepository(BotSchema);
+          const repository = dataSource.getRepository(ConversationSchema);
+          const existing = await repository.findOneBy({ botId, chatId, userId });
+          if (existing) {
+            return mapConversation(existing);
+          }
 
-      const now = new Date().toISOString();
-      const created = await repository.save(
-        repository.create({
-          botId,
-          chatId,
-          userId,
-          summaryContext: "",
-          createdAt: now,
-          updatedAt: now
-        })
+          const bot = await botRepository.findOneByOrFail({ id: botId });
+
+          const now = new Date().toISOString();
+          const defaultCountry = getCountryByCode(bot.defaultCountryCode);
+          const created = await repository.save(
+            repository.create({
+              botId,
+              chatId,
+              userId,
+              summaryContext: "",
+              countryCode: defaultCountry.code,
+              countryName: defaultCountry.nativeName,
+              createdAt: now,
+              updatedAt: now
+            })
+          );
+          return mapConversation(created);
+        },
+        { persist: true }
       );
-      return mapConversation(created);
     },
 
     async getConversationById(id) {
-      const repository = (await getDataSource()).getRepository(ConversationSchema);
-      const row = await repository.findOneBy({ id });
-      return row ? mapConversation(row) : null;
+      return withDataSource(async (dataSource) => {
+        const row = await dataSource.getRepository(ConversationSchema).findOneBy({ id });
+        return row ? mapConversation(row) : null;
+      });
     },
 
     async updateConversationSummary(conversationId, summaryContext) {
-      const repository = (await getDataSource()).getRepository(ConversationSchema);
-      await repository.update({ id: conversationId }, { summaryContext, updatedAt: new Date().toISOString() });
+      return withDataSource(
+        async (dataSource) => {
+          await dataSource.getRepository(ConversationSchema).update(
+            { id: conversationId },
+            { summaryContext, updatedAt: new Date().toISOString() }
+          );
+        },
+        { persist: true }
+      );
+    },
+
+    async updateConversationCountry(conversationId, countryCode, countryName) {
+      return withDataSource(
+        async (dataSource) => {
+          await dataSource.getRepository(ConversationSchema).update(
+            { id: conversationId },
+            { countryCode, countryName, updatedAt: new Date().toISOString() }
+          );
+        },
+        { persist: true }
+      );
     },
 
     async clearConversation(botId, chatId, userId) {
-      const dataSource = await getDataSource();
-      const conversationRepository = dataSource.getRepository(ConversationSchema);
-      const messageRepository = dataSource.getRepository(MessageSchema);
-      const conversation = await conversationRepository.findOneBy({ botId, chatId, userId });
-      if (!conversation) {
-        return;
-      }
+      return withDataSource(
+        async (dataSource) => {
+          const conversationRepository = dataSource.getRepository(ConversationSchema);
+          const messageRepository = dataSource.getRepository(MessageSchema);
+          const conversation = await conversationRepository.findOneBy({ botId, chatId, userId });
+          if (!conversation) {
+            return;
+          }
 
-      await messageRepository.delete({ conversationId: conversation.id });
-      await conversationRepository.update(
-        { id: conversation.id },
-        { summaryContext: "", updatedAt: new Date().toISOString() }
+          await messageRepository.delete({ conversationId: conversation.id });
+          await conversationRepository.update(
+            { id: conversation.id },
+            { summaryContext: "", updatedAt: new Date().toISOString() }
+          );
+        },
+        { persist: true }
       );
     },
 
     async addMessage(conversationId, role, text, telegramMessageId) {
-      const repository = (await getDataSource()).getRepository(MessageSchema);
-      const created = await repository.save(
-        repository.create({
-          conversationId,
-          role,
-          text,
-          telegramMessageId: telegramMessageId ?? null,
-          createdAt: new Date().toISOString()
-        })
+      return withDataSource(
+        async (dataSource) => {
+          const created = await dataSource.getRepository(MessageSchema).save(
+            dataSource.getRepository(MessageSchema).create({
+              conversationId,
+              role,
+              text,
+              telegramMessageId: telegramMessageId ?? null,
+              createdAt: new Date().toISOString()
+            })
+          );
+          return mapMessage(created);
+        },
+        { persist: true }
       );
-      return mapMessage(created);
     },
 
     async getMessageById(id) {
-      const repository = (await getDataSource()).getRepository(MessageSchema);
-      const row = await repository.findOneBy({ id });
-      return row ? mapMessage(row) : null;
+      return withDataSource(async (dataSource) => {
+        const row = await dataSource.getRepository(MessageSchema).findOneBy({ id });
+        return row ? mapMessage(row) : null;
+      });
+    },
+
+    async getMessageByTelegramMessageId(conversationId, telegramMessageId) {
+      return withDataSource(async (dataSource) => {
+        const row = await dataSource.getRepository(MessageSchema).findOneBy({
+          conversationId,
+          telegramMessageId
+        });
+        return row ? mapMessage(row) : null;
+      });
+    },
+
+    async updateMessageText(id, text) {
+      return withDataSource(
+        async (dataSource) => {
+          await dataSource.getRepository(MessageSchema).update(
+            { id },
+            { text, createdAt: new Date().toISOString() }
+          );
+        },
+        { persist: true }
+      );
     },
 
     async listRecentMessages(conversationId, limit = 12) {
-      const repository = (await getDataSource()).getRepository(MessageSchema);
-      const rows = await repository.find({
-        where: { conversationId },
-        order: { id: "DESC" },
-        take: limit
+      return withDataSource(async (dataSource) => {
+        const rows = await dataSource.getRepository(MessageSchema).find({
+          where: { conversationId },
+          order: { id: "DESC" },
+          take: limit
+        });
+        return rows.reverse().map(mapMessage);
       });
-      return rows.reverse().map(mapMessage);
+    },
+
+    async listMessagesBefore(conversationId, beforeMessageId, limit = 12) {
+      return withDataSource(async (dataSource) => {
+        const rows = await dataSource
+          .getRepository(MessageSchema)
+          .createQueryBuilder("message")
+          .where("message.conversation_id = :conversationId", { conversationId })
+          .andWhere("message.id < :beforeMessageId", { beforeMessageId })
+          .orderBy("message.id", "DESC")
+          .limit(limit)
+          .getMany();
+
+        return rows.reverse().map(mapMessage);
+      });
     },
 
     async addUsage(record) {
-      const repository = (await getDataSource()).getRepository(UsageSchema);
-      const created = await repository.save(
-        repository.create({
-          ...record,
-          createdAt: new Date().toISOString()
-        })
+      return withDataSource(
+        async (dataSource) => {
+          const created = await dataSource.getRepository(UsageSchema).save(
+            dataSource.getRepository(UsageSchema).create({
+              ...record,
+              createdAt: new Date().toISOString()
+            })
+          );
+          return mapUsage(created);
+        },
+        { persist: true }
       );
-      return mapUsage(created);
     },
 
     async getBotStats(botId) {
-      const dataSource = await getDataSource();
-      const rows = (await dataSource.query(
-        `
-          SELECT
-            b.id AS bot_id,
-            COUNT(DISTINCT c.id) AS total_conversations,
-            COUNT(DISTINCT m.id) AS total_messages,
-            COALESCE(SUM(u.total_chars), 0) AS total_usage_chars,
-            MAX(COALESCE(m.created_at, c.updated_at)) AS last_interaction_at
-          FROM bots b
-          LEFT JOIN conversations c ON c.bot_id = b.id
-          LEFT JOIN messages m ON m.conversation_id = c.id
-          LEFT JOIN usage_events u ON u.bot_id = b.id
-          WHERE b.id = ?
-          GROUP BY b.id
-        `,
-        [botId]
-      )) as Array<Record<string, number | string | null>>;
-      const row = rows[0];
+      return withDataSource(async (dataSource) => {
+        const rows = (await dataSource.query(
+          `
+            SELECT
+              b.id AS bot_id,
+              (
+                SELECT COUNT(*)
+                FROM conversations c
+                WHERE c.bot_id = b.id
+              ) AS total_conversations,
+              (
+                SELECT COUNT(*)
+                FROM messages m
+                INNER JOIN conversations c ON c.id = m.conversation_id
+                WHERE c.bot_id = b.id
+              ) AS total_messages,
+              COALESCE(
+                (
+                  SELECT SUM(u.total_chars)
+                  FROM usage_events u
+                  WHERE u.bot_id = b.id
+                ),
+                0
+              ) AS total_usage_chars,
+              (
+                SELECT MAX(m.created_at)
+                FROM messages m
+                INNER JOIN conversations c ON c.id = m.conversation_id
+                WHERE c.bot_id = b.id
+              ) AS last_message_at,
+              (
+                SELECT MAX(c.updated_at)
+                FROM conversations c
+                WHERE c.bot_id = b.id
+              ) AS last_conversation_at
+            FROM bots b
+            WHERE b.id = ?
+          `,
+          [botId]
+        )) as Array<Record<string, number | string | null>>;
+        const row = rows[0];
+        const lastMessageAt = row?.last_message_at ? String(row.last_message_at) : null;
+        const lastConversationAt = row?.last_conversation_at
+          ? String(row.last_conversation_at)
+          : null;
 
-      return {
-        botId,
-        totalConversations: Number(row?.total_conversations ?? 0),
-        totalMessages: Number(row?.total_messages ?? 0),
-        totalUsageChars: Number(row?.total_usage_chars ?? 0),
-        lastInteractionAt: row?.last_interaction_at ? String(row.last_interaction_at) : null
-      };
+        return {
+          botId,
+          totalConversations: Number(row?.total_conversations ?? 0),
+          totalMessages: Number(row?.total_messages ?? 0),
+          totalUsageChars: Number(row?.total_usage_chars ?? 0),
+          lastInteractionAt:
+            !lastMessageAt || (lastConversationAt && lastConversationAt > lastMessageAt)
+              ? lastConversationAt
+              : lastMessageAt
+        };
+      });
     },
 
     async getDashboardSummary() {
-      const dataSource = await getDataSource();
-      const rows = (await dataSource.query(
-        `
-          SELECT
-            COUNT(*) AS total_bots,
-            SUM(CASE WHEN status = 'active' THEN 1 ELSE 0 END) AS active_bots,
-            (SELECT COUNT(*) FROM conversations) AS total_conversations,
-            (SELECT COUNT(*) FROM messages) AS total_messages
-          FROM bots
-        `
-      )) as Array<Record<string, number | null>>;
-      const row = rows[0];
+      return withDataSource(async (dataSource) => {
+        const rows = (await dataSource.query(
+          `
+            SELECT
+              COUNT(*) AS total_bots,
+              SUM(CASE WHEN status = 'active' THEN 1 ELSE 0 END) AS active_bots,
+              (SELECT COUNT(*) FROM conversations) AS total_conversations,
+              (SELECT COUNT(*) FROM messages) AS total_messages
+            FROM bots
+          `
+        )) as Array<Record<string, number | null>>;
+        const row = rows[0];
 
-      return {
-        totalBots: Number(row?.total_bots ?? 0),
-        activeBots: Number(row?.active_bots ?? 0),
-        totalConversations: Number(row?.total_conversations ?? 0),
-        totalMessages: Number(row?.total_messages ?? 0)
-      };
+        return {
+          totalBots: Number(row?.total_bots ?? 0),
+          activeBots: Number(row?.active_bots ?? 0),
+          totalConversations: Number(row?.total_conversations ?? 0),
+          totalMessages: Number(row?.total_messages ?? 0)
+        };
+      });
     },
 
     async listRecentInteractions(limit = 20) {
-      const dataSource = await getDataSource();
-      const rows = (await dataSource.query(
-        `
-          SELECT
-            c.id AS conversation_id,
-            b.id AS bot_id,
-            b.name AS bot_name,
-            b.slug AS bot_slug,
-            c.chat_id,
-            c.user_id,
-            c.summary_context,
-            m.role AS last_message_role,
-            m.text AS last_message_text,
-            m.created_at AS last_message_at
-          FROM conversations c
-          INNER JOIN bots b ON b.id = c.bot_id
-          LEFT JOIN messages m ON m.id = (
-            SELECT id
-            FROM messages
-            WHERE conversation_id = c.id
-            ORDER BY id DESC
-            LIMIT 1
-          )
-          ORDER BY COALESCE(m.created_at, c.updated_at) DESC
-          LIMIT ?
-        `,
-        [limit]
-      )) as Array<Record<string, string | number | null>>;
+      return withDataSource(async (dataSource) => {
+        const rows = (await dataSource.query(
+          `
+            SELECT
+              c.id AS conversation_id,
+              b.id AS bot_id,
+              b.name AS bot_name,
+              b.slug AS bot_slug,
+              c.chat_id,
+              c.user_id,
+              c.summary_context,
+              m.role AS last_message_role,
+              m.text AS last_message_text,
+              m.created_at AS last_message_at
+            FROM conversations c
+            INNER JOIN bots b ON b.id = c.bot_id
+            LEFT JOIN messages m ON m.id = (
+              SELECT id
+              FROM messages
+              WHERE conversation_id = c.id
+              ORDER BY id DESC
+              LIMIT 1
+            )
+            ORDER BY COALESCE(m.created_at, c.updated_at) DESC
+            LIMIT ?
+          `,
+          [limit]
+        )) as Array<Record<string, string | number | null>>;
 
-      return rows.map((row) => ({
-        conversationId: Number(row.conversation_id),
-        botId: Number(row.bot_id),
-        botName: String(row.bot_name),
-        botSlug: String(row.bot_slug),
-        chatId: String(row.chat_id),
-        userId: String(row.user_id),
-        summaryContext: String(row.summary_context),
-        lastMessageRole: row.last_message_role ? (row.last_message_role as MessageRole) : null,
-        lastMessageText: row.last_message_text ? String(row.last_message_text) : null,
-        lastMessageAt: row.last_message_at ? String(row.last_message_at) : null
-      }));
+        return rows.map((row) => ({
+          conversationId: Number(row.conversation_id),
+          botId: Number(row.bot_id),
+          botName: String(row.bot_name),
+          botSlug: String(row.bot_slug),
+          chatId: String(row.chat_id),
+          userId: String(row.user_id),
+          summaryContext: String(row.summary_context),
+          lastMessageRole: row.last_message_role ? (row.last_message_role as MessageRole) : null,
+          lastMessageText: row.last_message_text ? String(row.last_message_text) : null,
+          lastMessageAt: row.last_message_at ? String(row.last_message_at) : null
+        }));
+      });
     },
 
     async getStatus() {
-      const initialized = await getDataSource();
       return {
         adapter: adapterName,
-        connected: initialized.isInitialized,
+        connected: true,
         databasePath: dbPath
       };
     },
 
-    async close() {
-      const initialized = await getDataSource();
-      if (initialized.isInitialized) {
-        await initialized.destroy();
-      }
-    }
+    async close() {}
   };
 };

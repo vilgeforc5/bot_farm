@@ -16,6 +16,7 @@ export interface BotRecord {
   slug: string;
   name: string;
   description: string;
+  defaultCountryCode: string;
   telegramBotToken: string;
   telegramSecretToken: string;
   status: BotStatus;
@@ -25,6 +26,7 @@ export interface BotRecord {
   fallbackModels: string[];
   contextLimit: number;
   systemPrompt: string;
+  helpMessage: string;
   buttons: BotInlineButton[];
   createdAt: string;
   updatedAt: string;
@@ -36,6 +38,8 @@ export interface ConversationRecord {
   chatId: string;
   userId: string;
   summaryContext: string;
+  countryCode: string;
+  countryName: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -90,4 +94,32 @@ export interface InteractionRecord {
   lastMessageRole: MessageRole | null;
   lastMessageText: string | null;
   lastMessageAt: string | null;
+}
+
+export interface OpenRouterModelOption {
+  id: string;
+  name: string;
+  description: string;
+  category: "popular_free" | "cheap";
+  promptPrice: number;
+  completionPrice: number;
+  requestPrice: number;
+  contextLength: number | null;
+  isFree: boolean;
+}
+
+export interface OpenRouterModelsResponse {
+  defaultModel: string;
+  items: OpenRouterModelOption[];
+}
+
+export interface CountryOption {
+  code: string;
+  flag: string;
+  nativeName: string;
+}
+
+export interface CountriesResponse {
+  defaultCountryCode: string;
+  items: CountryOption[];
 }

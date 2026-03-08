@@ -1,3 +1,4 @@
+import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { parseServerEnv } from "./env";
 
@@ -24,7 +25,7 @@ describe("parseServerEnv", () => {
       APP_PORT: 3001,
       APP_BASE_URL: "http://localhost:3001",
       DB_ADAPTER: "typeorm",
-      DB_PATH: "./data/test.sqlite",
+      DB_PATH: resolve("./data/test.sqlite"),
       OPENROUTER_API_KEY: "openrouter-key",
       OPENROUTER_BASE_URL: "https://openrouter.ai/api/v1",
       DEFAULT_OPENROUTER_MODEL: "openrouter/auto",

@@ -65,6 +65,7 @@ describe("admin db api", () => {
         slug: "support-bot",
         name: "Support Bot",
         description: "Handles support chats",
+        defaultCountryCode: "DE",
         telegramBotToken: "123:abc",
         status: "paused",
         strategyKey: "base_llm_chatbot_strategy",
@@ -73,14 +74,25 @@ describe("admin db api", () => {
         fallbackModels: ["openrouter/gpt-4.1-mini"],
         contextLimit: 300,
         systemPrompt: "Be concise.",
-        buttons: [{ text: "Help", action: "show_help" }]
+        helpMessage: "Привет и напиши вопрос.",
+        buttons: []
       })
     });
 
     expect(createResponse.status).toBe(201);
-    const createdBot = (await createResponse.json()) as { id: number; status: string; telegramBotToken: string };
-    expect(createdBot.telegramBotToken).toBe("123:abc");
+    const createdBot = (await createResponse.json()) as {
+      id: number;
+      status: string;
+        telegramBotTokenPreview: string;
+        defaultCountryCode: string;
+        helpMessage: string;
+      };
+    expect(createdBot.telegramBotTokenPreview).toBe("123:ab...");
+    expect(createdBot.defaultCountryCode).toBe("DE");
     expect(createdBot.status).toBe("paused");
+    expect(createdBot.helpMessage).toBe("Привет и напиши вопрос.");
+    expect(createdBot).not.toHaveProperty("telegramBotToken");
+    expect(createdBot).not.toHaveProperty("telegramSecretToken");
 
     const summaryResponse = await api.request("/admin/db/summary", {
       headers: { Authorization: authHeader(env) }
@@ -102,7 +114,10 @@ describe("admin db api", () => {
         id: createdBot.id,
         slug: "support-bot",
         name: "Support Bot",
+        defaultCountryCode: "DE",
         status: "paused",
+        telegramBotTokenPreview: "123:ab...",
+        helpMessage: "Привет и напиши вопрос.",
         stats: expect.objectContaining({
           totalConversations: 0,
           totalMessages: 0
@@ -119,6 +134,36 @@ describe("admin db api", () => {
       expect.objectContaining({
         id: createdBot.id,
         status: "active"
+      })
+    );
+
+    const updateResponse = await api.request(`/admin/db/bots/${createdBot.id}`, {
+      method: "PUT",
+      headers,
+      body: JSON.stringify({
+        slug: "support-bot",
+        name: "Support Bot Updated",
+        description: "Handles support chats better",
+        defaultCountryCode: "JP",
+        status: "active",
+        strategyKey: "base_llm_chatbot_strategy",
+        llmProvider: "openrouter",
+        llmModel: "openrouter/auto",
+        fallbackModels: ["openrouter/gpt-4.1-mini"],
+        contextLimit: 320,
+        systemPrompt: "Be concise.",
+        helpMessage: "Новое стартовое сообщение.",
+        buttons: []
+      })
+    });
+    expect(updateResponse.status).toBe(200);
+    await expect(updateResponse.json()).resolves.toEqual(
+      expect.objectContaining({
+        id: createdBot.id,
+        name: "Support Bot Updated",
+        defaultCountryCode: "JP",
+        telegramBotTokenPreview: "123:ab...",
+        helpMessage: "Новое стартовое сообщение."
       })
     );
 

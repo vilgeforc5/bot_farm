@@ -2,13 +2,19 @@ import { env } from "../config/env";
 import { store } from "../db/store";
 import type { BotRecord, TelegramMessageUpdate } from "../domain/types";
 import { handleTelegramUpdate } from "./chat-service";
-import { deleteTelegramWebhook, getTelegramUpdates } from "./telegram";
+import { deleteTelegramWebhook, getTelegramUpdates, setTelegramCommands } from "./telegram";
 
 const offsets = new Map<number, number>();
 const inflight = new Set<number>();
 const detachedWebhooks = new Set<number>();
+const configuredCommands = new Set<number>();
 
 const ensurePollingReady = async (bot: BotRecord): Promise<void> => {
+  if (!configuredCommands.has(bot.id)) {
+    await setTelegramCommands(bot);
+    configuredCommands.add(bot.id);
+  }
+
   if (detachedWebhooks.has(bot.id)) {
     return;
   }

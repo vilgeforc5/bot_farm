@@ -21,8 +21,8 @@ export interface BotRecord {
   slug: string;
   name: string;
   description: string;
-  telegramBotToken: string;
-  telegramSecretToken: string;
+  defaultCountryCode: string;
+  telegramBotTokenPreview: string;
   status: BotStatus;
   strategyKey: "base_llm_chatbot_strategy";
   llmProvider: "openrouter";
@@ -30,6 +30,7 @@ export interface BotRecord {
   fallbackModels: string[];
   contextLimit: number;
   systemPrompt: string;
+  helpMessage: string;
   buttons: BotInlineButton[];
   createdAt: string;
   updatedAt: string;
@@ -60,7 +61,8 @@ export interface BotPayload {
   slug: string;
   name: string;
   description: string;
-  telegramBotToken: string;
+  defaultCountryCode: string;
+  telegramBotToken?: string;
   status: BotStatus;
   strategyKey: "base_llm_chatbot_strategy";
   llmProvider: "openrouter";
@@ -68,7 +70,36 @@ export interface BotPayload {
   fallbackModels: string[];
   contextLimit: number;
   systemPrompt: string;
+  helpMessage: string;
   buttons: BotInlineButton[];
+}
+
+export interface OpenRouterModelOption {
+  id: string;
+  name: string;
+  description: string;
+  category: "popular_free" | "cheap";
+  promptPrice: number;
+  completionPrice: number;
+  requestPrice: number;
+  contextLength: number | null;
+  isFree: boolean;
+}
+
+export interface OpenRouterModelsResponse {
+  defaultModel: string;
+  items: OpenRouterModelOption[];
+}
+
+export interface CountryOption {
+  code: string;
+  flag: string;
+  nativeName: string;
+}
+
+export interface CountriesResponse {
+  defaultCountryCode: string;
+  items: CountryOption[];
 }
 
 const parseError = async (response: Response): Promise<string> => {

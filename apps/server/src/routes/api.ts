@@ -4,12 +4,20 @@ import { z } from "zod";
 import type { ServerEnv } from "../config/env";
 import type { DatabaseAdapter } from "../db/store";
 import type { BotStatus } from "../domain/types";
-import { deleteTelegramWebhook, setTelegramWebhook } from "../services/telegram";
+import { listCountries } from "../services/countries";
+import { listOpenRouterModels } from "../services/openrouter";
+import {
+  deleteTelegramWebhook,
+  setTelegramCommands,
+  syncTelegramBotProfile,
+  setTelegramWebhook,
+} from "../services/telegram";
 
-const botPayloadSchema = z.object({
+const createBotPayloadSchema = z.object({
   slug: z.string().min(1),
   name: z.string().min(1),
   description: z.string().default(""),
+  defaultCountryCode: z.string().trim().length(2).transform((value) => value.toUpperCase()).default("RU"),
   telegramBotToken: z.string().min(1),
   status: z.enum(["active", "paused"]).default("paused"),
   strategyKey: z.literal("base_llm_chatbot_strategy").default("base_llm_chatbot_strategy"),
@@ -18,6 +26,7 @@ const botPayloadSchema = z.object({
   fallbackModels: z.array(z.string()).default([]),
   contextLimit: z.number().int().min(120).max(600),
   systemPrompt: z.string().default(""),
+  helpMessage: z.string().default(""),
   buttons: z
     .array(
       z.object({
@@ -28,16 +37,45 @@ const botPayloadSchema = z.object({
     .default([])
 });
 
-const parseBotPayload = async (request: Request) => botPayloadSchema.parse(await request.json());
+const updateBotPayloadSchema = createBotPayloadSchema.extend({
+  telegramBotToken: z.string().trim().optional()
+});
 
-const withBotStats = async (database: DatabaseAdapter, botId: number) => {
+const parseCreateBotPayload = async (request: Request) =>
+  createBotPayloadSchema.parse(await request.json());
+
+const parseUpdateBotPayload = async (request: Request) =>
+  updateBotPayloadSchema.parse(await request.json());
+
+const maskTelegramToken = (token: string) => {
+  const prefix = token.slice(0, 6);
+  return `${prefix}${token.length > prefix.length ? "..." : ""}`;
+};
+
+const serializeAdminBot = async (database: DatabaseAdapter, botId: number) => {
   const bot = await database.getBotById(botId);
   if (!bot) {
     return null;
   }
 
   return {
-    ...bot,
+    id: bot.id,
+    slug: bot.slug,
+    name: bot.name,
+    description: bot.description,
+    defaultCountryCode: bot.defaultCountryCode,
+    telegramBotTokenPreview: maskTelegramToken(bot.telegramBotToken),
+    status: bot.status,
+    strategyKey: bot.strategyKey,
+    llmProvider: bot.llmProvider,
+    llmModel: bot.llmModel,
+    fallbackModels: bot.fallbackModels,
+    contextLimit: bot.contextLimit,
+    systemPrompt: bot.systemPrompt,
+    helpMessage: bot.helpMessage,
+    buttons: bot.buttons,
+    createdAt: bot.createdAt,
+    updatedAt: bot.updatedAt,
     stats: await database.getBotStats(bot.id)
   };
 };
@@ -63,6 +101,9 @@ export const createApiRoutes = ({
 
   admin.get("/session", (c) => c.json({ ok: true }));
 
+  admin.get("/openrouter/models", async (c) => c.json(await listOpenRouterModels()));
+  admin.get("/countries", (c) => c.json(listCountries()));
+
   db.get("/status", async (c) => c.json(await database.getStatus()));
 
   db.get("/summary", async (c) => c.json(await database.getDashboardSummary()));
@@ -73,17 +114,14 @@ export const createApiRoutes = ({
     const bots = await database.listBots();
     return c.json(
       await Promise.all(
-        bots.map(async (bot) => ({
-          ...bot,
-          stats: await database.getBotStats(bot.id)
-        }))
+        bots.map((bot) => serializeAdminBot(database, bot.id))
       )
     );
   });
 
   db.get("/bots/:id", async (c) => {
     const botId = Number(c.req.param("id"));
-    const bot = await withBotStats(database, botId);
+    const bot = await serializeAdminBot(database, botId);
     if (!bot) {
       return c.json({ error: "Bot not found" }, 404);
     }
@@ -93,9 +131,9 @@ export const createApiRoutes = ({
 
   db.post("/bots", async (c) => {
     try {
-      const payload = await parseBotPayload(c.req.raw);
+      const payload = await parseCreateBotPayload(c.req.raw);
       const bot = await database.saveBot(payload);
-      return c.json({ ...bot, stats: await database.getBotStats(bot.id) }, 201);
+      return c.json(await serializeAdminBot(database, bot.id), 201);
     } catch (error) {
       return c.json({ error: error instanceof Error ? error.message : "Failed to create bot" }, 400);
     }
@@ -109,13 +147,14 @@ export const createApiRoutes = ({
     }
 
     try {
-      const payload = await parseBotPayload(c.req.raw);
+      const payload = await parseUpdateBotPayload(c.req.raw);
       const bot = await database.saveBot({
         ...payload,
         id: botId,
+        telegramBotToken: payload.telegramBotToken?.trim() || existing.telegramBotToken,
         telegramSecretToken: existing.telegramSecretToken
       });
-      return c.json({ ...bot, stats: await database.getBotStats(bot.id) });
+      return c.json(await serializeAdminBot(database, bot.id));
     } catch (error) {
       return c.json({ error: error instanceof Error ? error.message : "Failed to update bot" }, 400);
     }
@@ -130,7 +169,7 @@ export const createApiRoutes = ({
 
     const nextStatus: BotStatus = bot.status === "active" ? "paused" : "active";
     await database.setBotStatus(botId, nextStatus);
-    const updated = await withBotStats(database, botId);
+    const updated = await serializeAdminBot(database, botId);
     return c.json(updated);
   });
 
@@ -141,10 +180,27 @@ export const createApiRoutes = ({
     }
 
     try {
+      await setTelegramCommands(bot);
+      await syncTelegramBotProfile(bot);
       await setTelegramWebhook(bot);
       return c.json({ ok: true });
     } catch (error) {
       return c.json({ error: error instanceof Error ? error.message : "Webhook connect failed" }, 400);
+    }
+  });
+
+  admin.post("/bots/:id/sync-profile", async (c) => {
+    const bot = await database.getBotById(Number(c.req.param("id")));
+    if (!bot) {
+      return c.json({ error: "Bot not found" }, 404);
+    }
+
+    try {
+      await setTelegramCommands(bot);
+      await syncTelegramBotProfile(bot);
+      return c.json({ ok: true });
+    } catch (error) {
+      return c.json({ error: error instanceof Error ? error.message : "Telegram profile sync failed" }, 400);
     }
   });
 

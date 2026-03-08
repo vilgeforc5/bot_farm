@@ -1,17 +1,121 @@
 import { store } from "../db/store";
 import { getStrategy } from "../domain/strategies";
-import type { BotRecord, TelegramMessageUpdate } from "../domain/types";
+import type {
+  BotInlineButton,
+  BotRecord,
+  ConversationRecord,
+  MessageRecord,
+  TelegramMessageUpdate,
+} from "../domain/types";
+import {
+  buildCountryKeyboard,
+  buildCountrySelectionText,
+  getCountryByCode,
+  getCountryPage,
+  parseCountryAction,
+} from "./countries";
 import { completeWithOpenRouter } from "./openrouter";
-import { answerCallbackQuery, sendTelegramMessage } from "./telegram";
-
-const helpText = [
-  "This bot uses the base_llm_chatbot_strategy.",
-  "Buttons:",
-  "- Clear Context: resets the stored message window for this chat.",
-  "- Help: shows this help text."
-].join("\n");
+import {
+  answerCallbackQuery,
+  editTelegramMessage,
+  sendTelegramMessage,
+  sendTypingAction,
+} from "./telegram";
 
 const getUserText = (update: TelegramMessageUpdate): string => update.message?.text?.trim() ?? "";
+const isStartCommand = (text: string): boolean => /^\/start(?:@\w+)?(?:\s.*)?$/i.test(text);
+const isCountryCommand = (text: string): boolean => /^\/country(?:@\w+)?(?:\s.*)?$/i.test(text);
+const isClearCommand = (text: string): boolean => /^\/clear(?:@\w+)?(?:\s.*)?$/i.test(text);
+const regenerateButtons: BotInlineButton[][] = [
+  [{ text: "Сгенерировать снова", action: "regenerate_response" }]
+];
+
+const withTypingIndicator = async <T>(bot: BotRecord, chatId: string, task: () => Promise<T>): Promise<T> => {
+  await sendTypingAction(bot, chatId);
+  const timer = setInterval(() => {
+    void sendTypingAction(bot, chatId).catch((error) => {
+      console.error("typing_action_error", {
+        bot: bot.slug,
+        error: error instanceof Error ? error.message : String(error)
+      });
+    });
+  }, 4000);
+
+  try {
+    return await task();
+  } finally {
+    clearInterval(timer);
+  }
+};
+
+const sendCountryPrompt = async (
+  bot: BotRecord,
+  chatId: string,
+  conversation: ConversationRecord
+) => {
+  const currentCountry = getCountryByCode(conversation.countryCode);
+  await sendTelegramMessage(
+    bot,
+    chatId,
+    buildCountrySelectionText(currentCountry),
+    buildCountryKeyboard(getCountryPage(conversation.countryCode), conversation.countryCode)
+  );
+};
+
+const sendStartSequence = async (
+  bot: BotRecord,
+  chatId: string,
+  conversation: ConversationRecord
+) => {
+  const strategy = getStrategy(bot.strategyKey);
+  await sendTelegramMessage(
+    bot,
+    chatId,
+    bot.helpMessage.trim() || strategy.defaultStartMessage,
+    []
+  );
+  await sendCountryPrompt(bot, chatId, conversation);
+};
+
+const generateAssistantReply = async ({
+  bot,
+  chatId,
+  conversation,
+  messages,
+}: {
+  bot: BotRecord;
+  chatId: string;
+  conversation: ConversationRecord;
+  messages: MessageRecord[];
+}) => {
+  const strategy = getStrategy(bot.strategyKey);
+  const execution = strategy.buildExecution({
+    bot,
+    conversation,
+    messages
+  });
+
+  const completion = await withTypingIndicator(bot, chatId, () =>
+    completeWithOpenRouter(bot, execution.prompt)
+  );
+
+  await store.updateConversationSummary(conversation.id, execution.prompt);
+  await store.addUsage({
+    botId: bot.id,
+    conversationId: conversation.id,
+    provider: completion.provider,
+    model: completion.model,
+    promptChars: completion.promptChars,
+    completionChars: completion.completionChars,
+    totalChars: completion.promptChars + completion.completionChars,
+    rawResponse: completion.rawResponse
+  });
+
+  return {
+    text: completion.text,
+    buttons: execution.buttons
+  };
+};
 
 export const handleTelegramUpdate = async (bot: BotRecord, update: TelegramMessageUpdate): Promise<void> => {
   if (bot.status !== "active") {
@@ -27,20 +131,117 @@ export const handleTelegramUpdate = async (bot: BotRecord, update: TelegramMessa
       return;
     }
 
-    if (action === "clear_context") {
-      await store.clearConversation(bot.id, chatId, userId);
-      await answerCallbackQuery(bot, update.callback_query.id, "Context cleared");
-      await sendTelegramMessage(bot, chatId, "Context cleared for this chat.", [[{ text: "Help", action: "show_help" }]]);
+    const countryAction = parseCountryAction(action);
+    if (countryAction) {
+      const conversation = await store.getOrCreateConversation(bot.id, chatId, userId);
+
+      if (countryAction.type === "noop") {
+        await answerCallbackQuery(bot, update.callback_query.id, "Страница со странами");
+        return;
+      }
+
+      if (countryAction.type === "page") {
+        await answerCallbackQuery(bot, update.callback_query.id, "Выберите страну");
+        if (update.callback_query.message?.message_id) {
+          await editTelegramMessage(
+            bot,
+            chatId,
+            update.callback_query.message.message_id,
+            buildCountrySelectionText(getCountryByCode(conversation.countryCode)),
+            buildCountryKeyboard(countryAction.page, conversation.countryCode),
+          );
+        } else {
+          await sendTelegramMessage(
+            bot,
+            chatId,
+            buildCountrySelectionText(getCountryByCode(conversation.countryCode)),
+            buildCountryKeyboard(countryAction.page, conversation.countryCode),
+          );
+        }
+        return;
+      }
+
+      const selectedCountry = getCountryByCode(countryAction.code);
+      if (selectedCountry.code === conversation.countryCode) {
+        await answerCallbackQuery(
+          bot,
+          update.callback_query.id,
+          `Уже выбрано: ${selectedCountry.flag} ${selectedCountry.nativeName}`,
+        );
+        return;
+      }
+
+      await store.updateConversationCountry(
+        conversation.id,
+        selectedCountry.code,
+        selectedCountry.nativeName,
+      );
+      await answerCallbackQuery(
+        bot,
+        update.callback_query.id,
+        `Страна выбрана: ${selectedCountry.flag} ${selectedCountry.nativeName}`,
+      );
+      if (update.callback_query.message?.message_id) {
+        await editTelegramMessage(
+          bot,
+          chatId,
+          update.callback_query.message.message_id,
+          buildCountrySelectionText(selectedCountry),
+          buildCountryKeyboard(getCountryPage(selectedCountry.code), selectedCountry.code),
+        );
+      } else {
+        await sendTelegramMessage(
+          bot,
+          chatId,
+          buildCountrySelectionText(selectedCountry),
+          buildCountryKeyboard(getCountryPage(selectedCountry.code), selectedCountry.code),
+        );
+      }
       return;
     }
 
-    if (action === "show_help") {
-      await answerCallbackQuery(bot, update.callback_query.id, "Help sent");
-      await sendTelegramMessage(bot, chatId, helpText, [[{ text: "Clear Context", action: "clear_context" }]]);
+    if (action === "regenerate_response") {
+      const conversation = await store.getOrCreateConversation(bot.id, chatId, userId);
+      const telegramMessageId = String(update.callback_query.message?.message_id ?? "");
+      if (!telegramMessageId) {
+        await answerCallbackQuery(bot, update.callback_query.id, "Сообщение не найдено");
+        return;
+      }
+
+      const assistantMessage = await store.getMessageByTelegramMessageId(
+        conversation.id,
+        telegramMessageId
+      );
+      if (!assistantMessage || assistantMessage.role !== "assistant") {
+        await answerCallbackQuery(bot, update.callback_query.id, "Нечего перегенерировать");
+        return;
+      }
+
+      const messages = await store.listMessagesBefore(conversation.id, assistantMessage.id, 12);
+      if (messages.length === 0) {
+        await answerCallbackQuery(bot, update.callback_query.id, "Контекст не найден");
+        return;
+      }
+
+      await answerCallbackQuery(bot, update.callback_query.id, "Перегенерирую");
+      const regenerated = await generateAssistantReply({
+        bot,
+        chatId,
+        conversation,
+        messages
+      });
+      await editTelegramMessage(
+        bot,
+        chatId,
+        Number(telegramMessageId),
+        regenerated.text,
+        regenerateButtons
+      );
+      await store.updateMessageText(assistantMessage.id, regenerated.text);
       return;
     }
 
-    await answerCallbackQuery(bot, update.callback_query.id, "Unknown action");
+    await answerCallbackQuery(bot, update.callback_query.id, "Неизвестное действие");
     return;
   }
 
@@ -52,28 +253,42 @@ export const handleTelegramUpdate = async (bot: BotRecord, update: TelegramMessa
   const chatId = String(update.message.chat.id);
   const userId = String(update.message.from.id);
   const conversation = await store.getOrCreateConversation(bot.id, chatId, userId);
+
+  if (isStartCommand(inputText)) {
+    await sendStartSequence(bot, chatId, conversation);
+    return;
+  }
+
+  if (isCountryCommand(inputText)) {
+    await sendCountryPrompt(bot, chatId, conversation);
+    return;
+  }
+
+  if (isClearCommand(inputText)) {
+    await store.clearConversation(bot.id, chatId, userId);
+    await sendTelegramMessage(bot, chatId, "Контекст этого чата очищен.", []);
+    return;
+  }
+
   await store.addMessage(conversation.id, "user", inputText, String(update.message.message_id));
 
   const recentMessages = await store.listRecentMessages(conversation.id, 12);
-  const strategy = getStrategy(bot.strategyKey);
-  const execution = strategy.buildExecution({
+  const completion = await generateAssistantReply({
     bot,
+    chatId,
+    conversation,
     messages: recentMessages
   });
-
-  const completion = await completeWithOpenRouter(bot, execution.prompt);
-  await store.addMessage(conversation.id, "assistant", completion.text);
-  await store.updateConversationSummary(conversation.id, execution.prompt);
-  await store.addUsage({
-    botId: bot.id,
-    conversationId: conversation.id,
-    provider: completion.provider,
-    model: completion.model,
-    promptChars: completion.promptChars,
-    completionChars: completion.completionChars,
-    totalChars: completion.promptChars + completion.completionChars,
-    rawResponse: completion.rawResponse
-  });
-
-  await sendTelegramMessage(bot, chatId, completion.text, execution.buttons);
+  const telegramMessageId = await sendTelegramMessage(
+    bot,
+    chatId,
+    completion.text,
+    regenerateButtons
+  );
+  await store.addMessage(
+    conversation.id,
+    "assistant",
+    completion.text,
+    String(telegramMessageId)
+  );
 };

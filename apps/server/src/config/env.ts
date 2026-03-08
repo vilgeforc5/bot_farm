@@ -1,4 +1,5 @@
-import { z } from "zod";
+import { resolve } from "node:path";
+import { ZodError, z } from "zod";
 
 const requiredString = (name: string) =>
   z.string({
@@ -9,7 +10,7 @@ const envSchema = z.object({
   APP_PORT: z.coerce.number().int().positive(),
   APP_BASE_URL: requiredString("APP_BASE_URL").url(),
   DB_ADAPTER: z.literal("typeorm"),
-  DB_PATH: requiredString("DB_PATH"),
+  DB_PATH: requiredString("DB_PATH").transform((value) => resolve(value)),
   OPENROUTER_API_KEY: requiredString("OPENROUTER_API_KEY"),
   OPENROUTER_BASE_URL: requiredString("OPENROUTER_BASE_URL").url(),
   DEFAULT_OPENROUTER_MODEL: requiredString("DEFAULT_OPENROUTER_MODEL"),
@@ -24,7 +25,18 @@ const envSchema = z.object({
 
 export type ServerEnv = z.infer<typeof envSchema>;
 
-export const parseServerEnv = (input: Record<string, string | undefined>): ServerEnv => envSchema.parse(input);
+export const parseServerEnv = (input: Record<string, string | undefined>): ServerEnv => {
+  try {
+    return envSchema.parse(input);
+  } catch (error) {
+    if (error instanceof ZodError) {
+      const details = error.issues.map((issue) => `${issue.path.join(".")}: ${issue.message}`).join("\n");
+      throw new Error(`Invalid server environment:\n${details}`);
+    }
+
+    throw error;
+  }
+};
 
 let cachedEnv: ServerEnv | null = null;
 

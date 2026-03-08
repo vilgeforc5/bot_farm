@@ -13,11 +13,13 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@openrouter/sdk": "^0.9.11",
     "grammy": "^1.41.1",
     "hono": "^4.12.5",
     "reflect-metadata": "^0.2.2",
     "sql.js": "^1.13.0",
     "typeorm": "^0.3.26",
+    "world-countries": "^5.1.0",
     "zod": "^3.25.76"
   },
   "devDependencies": {
