@@ -3,3 +3,4 @@ node_modules
 apps/*/.env
 apps/*/data
 apps/*/dist
+nginx/certs

@@ -13,13 +13,10 @@
     "check:server": "bun --filter @bot-farm/server check",
     "check:dashboard": "bun --filter @bot-farm/dashboard build",
     "check": "bun run check:server && bun run check:dashboard",
-    "typecheck": "bun run --filter '*' typecheck"
+    "typecheck": "bun run --filter '*' typecheck",
+    "deploy": "docker compose up -d --build"
   },
   "devDependencies": {
     "concurrently": "^9.2.1"
-  },
-  "dependencies": {
-    "pm2": "^6.0.8",
-    "@tanstack/react-table": "^8.21.3"
   }
 }

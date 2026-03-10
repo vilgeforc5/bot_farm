@@ -20,16 +20,18 @@ echo "==> Building Docker images..."
 docker compose build
 
 echo "==> Migrating SQLite data to Docker volume..."
-docker compose run --rm --no-deps --entrypoint sh server -c "
-  if ls /migration/*.sqlite 2>/dev/null | head -1 | grep -q .; then
-    cp -v /migration/bot-farm.sqlite /app/data/
-    cp -v /migration/bot-farm.sqlite-shm /app/data/ 2>/dev/null || true
-    cp -v /migration/bot-farm.sqlite-wal /app/data/ 2>/dev/null || true
-    echo 'Data migrated.'
-  else
-    echo 'No existing data found — starting with an empty database.'
-  fi
-" -v "$DATA_DIR:/migration:ro"
+docker compose run --rm --no-deps \
+  -v "$DATA_DIR:/migration:ro" \
+  --entrypoint sh server -c "
+    if ls /migration/*.sqlite 2>/dev/null | head -1 | grep -q .; then
+      cp -v /migration/bot-farm.sqlite /app/data/
+      cp -v /migration/bot-farm.sqlite-shm /app/data/ 2>/dev/null || true
+      cp -v /migration/bot-farm.sqlite-wal /app/data/ 2>/dev/null || true
+      echo 'Data migrated.'
+    else
+      echo 'No existing data found — starting with an empty database.'
+    fi
+  "
 
 echo "==> Starting all services..."
 docker compose up -d
