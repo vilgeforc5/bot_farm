@@ -15,7 +15,7 @@ services:
       context: ./apps/dashboard
       dockerfile: Dockerfile
       args:
-        VITE_SERVER_URL: http://server:3001
+        VITE_SERVER_URL: https://109.73.193.125
     depends_on:
       - server
     ports:
