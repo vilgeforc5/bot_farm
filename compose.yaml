@@ -5,10 +5,9 @@ services:
       dockerfile: Dockerfile
     env_file:
       - ./apps/server/.env
-    ports:
-      - "3001:3001"
     volumes:
       - bot_farm_server_data:/app/data
+      - ./nginx/certs:/app/certs:ro
     restart: unless-stopped
 
   dashboard:
@@ -21,6 +20,17 @@ services:
       - server
     ports:
       - "3000:3000"
+    restart: unless-stopped
+
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/certs:/etc/nginx/certs:ro
+    depends_on:
+      - server
     restart: unless-stopped
 
 volumes:

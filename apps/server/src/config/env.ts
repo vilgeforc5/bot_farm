@@ -26,6 +26,7 @@ const envSchema = z.object({
   DASHBOARD_ORIGIN: requiredString("DASHBOARD_ORIGIN").url(),
   ADMIN_USERNAME: requiredString("ADMIN_USERNAME"),
   ADMIN_PASSWORD: requiredString("ADMIN_PASSWORD").min(8),
+  WEBHOOK_CERT_PATH: z.string().trim().optional(),
 });
 
 export type ServerEnv = z.infer<typeof envSchema>;

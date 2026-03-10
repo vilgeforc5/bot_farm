@@ -118,11 +118,17 @@ export const syncTelegramBotProfile = async (bot: BotRecord): Promise<void> => {
 };
 
 export const setTelegramWebhook = async (bot: BotRecord): Promise<void> => {
+  const options: { secret_token?: string; certificate?: InputFile } = {
+    secret_token: bot.telegramSecretToken,
+  };
+
+  if (env.WEBHOOK_CERT_PATH) {
+    options.certificate = new InputFile(env.WEBHOOK_CERT_PATH);
+  }
+
   await getClient(bot).api.setWebhook(
     `${env.APP_BASE_URL}/webhooks/telegram/${bot.slug}`,
-    {
-      secret_token: bot.telegramSecretToken,
-    },
+    options,
   );
 };
 

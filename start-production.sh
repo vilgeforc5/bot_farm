@@ -32,6 +32,8 @@ upsert_pm2_process() {
   fi
 }
 
+ENABLE_NGINX=${ENABLE_NGINX:-1}
+
 require_command bun
 
 if [ ! -x "$PM2_BIN" ]; then
@@ -65,3 +67,12 @@ fi
 
 "$PM2_BIN" save
 "$PM2_BIN" status
+
+if [ "$ENABLE_NGINX" = "1" ]; then
+  if command -v docker >/dev/null 2>&1; then
+    echo "Starting nginx (SSL reverse proxy)..."
+    docker compose up -d nginx
+  else
+    echo "Warning: docker not found, skipping nginx. Set ENABLE_NGINX=0 to suppress this." >&2
+  fi
+fi
